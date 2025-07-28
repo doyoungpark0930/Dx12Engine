@@ -6,15 +6,20 @@ public :
     void OnInit();
     void OnUpdate();
     void OnRender();
-    void OnDestroy();
 
     void GetHardwareAdapter(IDXGIFactory1* pFactory, IDXGIAdapter1** ppAdapter);
 
-    Renderer();
+    UINT GetWidth() const { return clientWidth; }
+    UINT GetHeight() const { return clientHeight; }
+
+    Renderer(UINT width, UINT height);
     ~Renderer();
 
 private:
     static const UINT FrameCount = 2;
+
+    UINT clientWidth;
+    UINT clientHeight;
 
 
     // Pipeline objects.
