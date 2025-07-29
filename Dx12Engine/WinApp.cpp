@@ -5,9 +5,9 @@
 Renderer* WinApp::m_renderer = nullptr;
 HWND WinApp::m_hwnd = nullptr;
 
-int WinApp::Run(HINSTANCE hInstance, int nCmdShow, const wchar_t CLASS_NAME[])
+int WinApp::Run(HINSTANCE hInstance, int nCmdShow, const wchar_t CLASS_NAME[], UINT width, UINT height)
 {
-    m_renderer = new Renderer(1280, 720);
+    m_renderer = new Renderer(width, height);
 
     WNDCLASS wc = { };
 
@@ -16,7 +16,7 @@ int WinApp::Run(HINSTANCE hInstance, int nCmdShow, const wchar_t CLASS_NAME[])
     wc.lpszClassName = CLASS_NAME;
 
     RegisterClass(&wc);
-
+    WinApp::m_hwnd = nullptr;
 
     RECT rc = { 0, 0, m_renderer->GetWidth(), m_renderer->GetHeight()}; // 원하는 클라이언트 영역 크기
     AdjustWindowRect(&rc, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, FALSE);
@@ -61,7 +61,8 @@ int WinApp::Run(HINSTANCE hInstance, int nCmdShow, const wchar_t CLASS_NAME[])
         }
         else
         {
-            //begin, end, update등
+            m_renderer->OnUpdate();
+            m_renderer->OnRender();
         }
     };
 
@@ -83,10 +84,6 @@ LRESULT CALLBACK WinApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
         PostQuitMessage(0);
         return 0;
 
-    case WM_CREATE:
-    {
-        return 0;
-    }
     case WM_PAINT:
     {
         PAINTSTRUCT ps;

@@ -7,7 +7,6 @@ public :
     void OnUpdate();
     void OnRender();
 
-    void GetHardwareAdapter(IDXGIFactory1* pFactory, IDXGIAdapter1** ppAdapter);
 
     UINT GetWidth() const { return clientWidth; }
     UINT GetHeight() const { return clientHeight; }
@@ -27,7 +26,7 @@ private:
     D3D12_RECT m_scissorRect;
     IDXGISwapChain3* m_swapChain;
     ID3D12Device* m_device;
-    ID3D12Resource* m_renderTargets[FrameCount];
+    ID3D12Resource* m_renderTargets[FrameCount] = {};
     ID3D12CommandAllocator* m_commandAllocator;
     ID3D12CommandQueue* m_commandQueue;
     ID3D12RootSignature* m_rootSignature;
@@ -49,4 +48,5 @@ private:
     void LoadAssets();
     void PopulateCommandList();
     void WaitForPreviousFrame();
+
 };

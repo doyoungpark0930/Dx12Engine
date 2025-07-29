@@ -16,6 +16,9 @@
     <Filter Include="Header Files\pch">
       <UniqueIdentifier>{a584d856-284f-4aca-a3bd-62d3778c50ec}</UniqueIdentifier>
     </Filter>
+    <Filter Include="ShaderFiles">
+      <UniqueIdentifier>{e9910094-0ca3-4fa0-a081-427adb8224c4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="WinApp.cpp">
@@ -30,6 +33,9 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="DXUtil.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h">
@@ -41,8 +47,20 @@
     <ClInclude Include="WinApp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="DXHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DXUtil.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="VertexStruct.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="shaders.hlsl">
+      <Filter>ShaderFiles</Filter>
+    </None>
   </ItemGroup>
 </Project>
