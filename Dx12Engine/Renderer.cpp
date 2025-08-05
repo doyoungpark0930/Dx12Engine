@@ -3,13 +3,16 @@
 #include "winApp.h"
 #include "VertexStruct.h"
 
+#include "DXUtil.h"
+#include "DXHelper.h"
+
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 
 
-#include "DXUtil.h"
-#include "DXHelper.h"
+#include "Object.h"
+#include "mesh.h"
 
 using namespace DirectX;
 
@@ -245,44 +248,17 @@ void Renderer::LoadAssets()
 	// to record yet. The main loop expects it to be closed, so close it now.
 	if (FAILED(m_commandList->Close()))__debugbreak();
 
-	// Create the vertex buffer.
-	{
-		// Define the geometry for a triangle.
-		Vertex triangleVertices[] =
-		{
-			{ { 0.0f, 0.25f, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
-			{ { 0.25f, -0.25f, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
-			{ { -0.25f, -0.25f, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } }
-		};
+	Object::m_renderer = this;
 
-		const UINT vertexBufferSize = sizeof(triangleVertices);
+	Vertex* triangleVertices = CreateTriangleVertex();
+	Vertex* squareVertices = CreateSquareVertex();
 
-		// Note: using upload heaps to transfer static data like vert buffers is not
-		// recommended. Every time the GPU needs it, the upload heap will be marshalled
-		// over. Please read up on Default Heap usage. An upload heap is used here for
-		// code simplicity and because there are very few verts to actually transfer.
-		CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
-		CD3DX12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
-		if (FAILED(m_device->CreateCommittedResource(
-			&heapProps,
-			D3D12_HEAP_FLAG_NONE,
-			&resDesc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS(&m_vertexBuffer)))) __debugbreak();
+	m_Objects = new Object[ObjectsNum];
 
-		// Copy the triangle data to the vertex buffer.
-		UINT8* pVertexDataBegin;
-		CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
-		if (FAILED(m_vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)))) __debugbreak();
-		memcpy(pVertexDataBegin, triangleVertices, sizeof(triangleVertices));
-		m_vertexBuffer->Unmap(0, nullptr);
+	m_Objects[0].CreateVertexBuffer(triangleVertices, 3);
+	m_Objects[1].CreateVertexBuffer(squareVertices, 6);
 
-		// Initialize the vertex buffer view.
-		m_vertexBufferView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
-		m_vertexBufferView.StrideInBytes = sizeof(Vertex);
-		m_vertexBufferView.SizeInBytes = vertexBufferSize;
-	}
+
 
 	// Create synchronization objects.
 	{
@@ -297,6 +273,17 @@ void Renderer::LoadAssets()
 		}
 	}
 
+	if (triangleVertices)
+	{
+		delete triangleVertices;
+		triangleVertices = nullptr;
+	}
+
+	if (squareVertices)
+	{
+		delete squareVertices;
+		squareVertices = nullptr;
+	}
 
 	
 }
@@ -352,9 +339,10 @@ void Renderer::PopulateCommandList()
 	// Record commands.
 	const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
 	m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
-	m_commandList->DrawInstanced(3, 1, 0, 0);
+	for (int i = 0; i < ObjectsNum; i++)
+	{
+		m_Objects[i].Render();
+	}
 
 	barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET ,D3D12_RESOURCE_STATE_PRESENT);
 	// Indicate that the back buffer will now be used to present.
@@ -447,12 +435,9 @@ Renderer::~Renderer()
 		m_fence->Release();
 		m_fence = nullptr;
 	}
-
-	if (m_vertexBuffer)
-	{
-		m_vertexBuffer->Release();
-		m_vertexBuffer = nullptr;
-	}
+	
+	delete[] m_Objects;
+	m_Objects = nullptr;
 
 	if (m_device)
 	{

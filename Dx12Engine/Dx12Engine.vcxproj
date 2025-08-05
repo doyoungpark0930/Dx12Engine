@@ -131,6 +131,7 @@
   <ItemGroup>
     <ClCompile Include="DXUtil.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Object.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
     </ClCompile>
@@ -140,6 +141,8 @@
   <ItemGroup>
     <ClInclude Include="DXHelper.h" />
     <ClInclude Include="DXUtil.h" />
+    <ClInclude Include="mesh.h" />
+    <ClInclude Include="Object.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="VertexStruct.h" />

@@ -1,5 +1,8 @@
 ﻿  Renderer.cpp
-C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(136,77): warning C4390: ';': empty controlled statement found; is this the intent?
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(139,77): warning C4390: ';': empty controlled statement found; is this the intent?
+  (compiling source file '/Renderer.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(342,20): warning C4018: '<': signed/unsigned mismatch
   (compiling source file '/Renderer.cpp')
   
   Dx12Engine.vcxproj -> C:\Users\Lenovo\source\repos\Dx12Engine\x64\Debug\Dx12Engine.exe

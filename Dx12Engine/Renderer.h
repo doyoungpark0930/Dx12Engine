@@ -1,5 +1,7 @@
 #pragma once
 
+class Object;
+
 class Renderer
 {
 public :
@@ -10,6 +12,9 @@ public :
 
     UINT GetWidth() const { return clientWidth; }
     UINT GetHeight() const { return clientHeight; }
+
+    ID3D12Device* GetDevice() const { return m_device; }
+    ID3D12GraphicsCommandList* GetCommandList() const { return m_commandList; }
 
     Renderer(UINT width, UINT height);
     ~Renderer();
@@ -35,15 +40,17 @@ private:
     ID3D12GraphicsCommandList* m_commandList;
     UINT m_rtvDescriptorSize;
 
-    // App resources.
-    ID3D12Resource* m_vertexBuffer;
-    D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
 
     // Synchronization objects.
     UINT m_frameIndex;
     HANDLE m_fenceEvent;
     ID3D12Fence* m_fence;
     UINT64 m_fenceValue;
+
+    Object* m_Objects;
+    UINT ObjectsNum = 2;
+
+    
 
     void LoadAssets();
     void PopulateCommandList();
