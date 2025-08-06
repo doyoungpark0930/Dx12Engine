@@ -248,18 +248,6 @@ void Renderer::LoadAssets()
 	// to record yet. The main loop expects it to be closed, so close it now.
 	if (FAILED(m_commandList->Close()))__debugbreak();
 
-	Object::m_renderer = this;
-
-	Vertex* triangleVertices = CreateTriangleVertex();
-	Vertex* squareVertices = CreateSquareVertex();
-
-	m_Objects = new Object[ObjectsNum];
-
-	m_Objects[0].CreateVertexBuffer(triangleVertices, 3);
-	m_Objects[1].CreateVertexBuffer(squareVertices, 6);
-
-
-
 	// Create synchronization objects.
 	{
 		if (FAILED(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)))) __debugbreak();
@@ -272,6 +260,17 @@ void Renderer::LoadAssets()
 			__debugbreak();
 		}
 	}
+
+	Object::m_renderer = this;
+
+	Vertex* triangleVertices = CreateTriangleVertex();
+	Vertex* squareVertices = CreateSquareVertex();
+
+	m_Objects = new Object[ObjectsNum];
+
+	m_Objects[0].CreateVertexBuffer(triangleVertices, 3);
+	m_Objects[1].CreateVertexBuffer(squareVertices, 6);
+
 
 	if (triangleVertices)
 	{
@@ -435,6 +434,7 @@ Renderer::~Renderer()
 		m_fence->Release();
 		m_fence = nullptr;
 	}
+
 	
 	delete[] m_Objects;
 	m_Objects = nullptr;
