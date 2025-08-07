@@ -4,17 +4,33 @@
 #include "Renderer.h"
 
 Renderer* Object::m_renderer = nullptr;
+UINT Object::descriptorSize = 0;
 Object::Object()
 {
 	m_device = m_renderer->GetDevice();
 	m_commandList = m_renderer->GetCommandList();
 	m_commandAllocator = m_renderer->GetCommandAllocator();
+	m_cbvHeap = m_renderer->GetDscHeap();
 	m_commandQueue = m_renderer->GetCommandQueue();
 	m_pipelineState = m_renderer->GetPipeline();
 	m_fence = m_renderer->GetFence();
 	m_fenceEvent = m_renderer->GetFenceEvent();
 	m_fenceValue = m_renderer->GetFenceValue();
+
 }
+
+void Object::OnInit(UINT ObjectCnt, Vertex* vertices, UINT vertexCount)
+{
+	m_ObjectCnt = ObjectCnt;
+	if (m_ObjectCnt == 0)
+	{
+		descriptorSize= m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	}
+	CreateVertexBuffer(vertices, vertexCount);
+	m_constantBufferData = {};
+	CreateConstantBuffer();
+}
+
 void Object::CreateVertexBuffer(Vertex* vertices, UINT vertexCount)
 {
 	m_vertexCount = vertexCount;
@@ -55,7 +71,7 @@ void Object::CreateVertexBuffer(Vertex* vertices, UINT vertexCount)
 	if (FAILED(m_commandList->Reset(m_commandAllocator, m_pipelineState))) __debugbreak();
 
 	UpdateSubresources(m_commandList, m_vertexBuffer, vertexBufferUpload, 0, 0, 1, &vertexData); //이거 하면 Map/UnMap할 필요없음
-	
+
 	CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
 		m_vertexBuffer,
 		D3D12_RESOURCE_STATE_COPY_DEST,
@@ -68,11 +84,10 @@ void Object::CreateVertexBuffer(Vertex* vertices, UINT vertexCount)
 
 	WaitForPreviousFrame();
 
-
 	m_vertexBufferView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
 	m_vertexBufferView.StrideInBytes = sizeof(Vertex);
 	m_vertexBufferView.SizeInBytes = vertexBufferSize;
-	
+
 	if (vertexBufferUpload)
 	{
 		vertexBufferUpload->Release();
@@ -80,8 +95,45 @@ void Object::CreateVertexBuffer(Vertex* vertices, UINT vertexCount)
 	}
 
 }
+
+void Object::CreateConstantBuffer()
+{
+	const UINT constantBufferSize = sizeof(SceneConstantBuffer);    // CB size is required to be 256-byte aligned.
+
+	CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
+	CD3DX12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer(constantBufferSize);
+
+	if (FAILED(m_device->CreateCommittedResource(
+		&heapProps,
+		D3D12_HEAP_FLAG_NONE,
+		&resDesc,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&m_constantBuffer))))
+	{
+		__debugbreak();
+	}
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE cbvHandle(m_cbvHeap->GetCPUDescriptorHandleForHeapStart());
+	cbvHandle.Offset(m_ObjectCnt, descriptorSize);
+
+	// Describe and create a constant buffer view.
+	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+	cbvDesc.BufferLocation = m_constantBuffer->GetGPUVirtualAddress();
+	cbvDesc.SizeInBytes = constantBufferSize;
+	m_device->CreateConstantBufferView(&cbvDesc, cbvHandle);
+
+	// Map and initialize the constant buffer. We don't unmap this until the
+	// app closes. Keeping things mapped for the lifetime of the resource is okay.
+	CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
+	if (FAILED(m_constantBuffer->Map(0, &readRange, reinterpret_cast<void**>(&m_pCbvDataBegin)))) __debugbreak();
+	memcpy(m_pCbvDataBegin, &m_constantBufferData, sizeof(m_constantBufferData));
+}
 void Object::Render()
 {
+	CD3DX12_GPU_DESCRIPTOR_HANDLE cbvGpuHandle(m_cbvHeap->GetGPUDescriptorHandleForHeapStart());
+	cbvGpuHandle.Offset(m_ObjectCnt, descriptorSize);
+	m_commandList->SetGraphicsRootDescriptorTable(0, cbvGpuHandle);
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
 	m_commandList->DrawInstanced(m_vertexCount, 1, 0, 0);
@@ -108,5 +160,10 @@ Object::~Object()
 	{
 		m_vertexBuffer->Release();
 		m_vertexBuffer = nullptr;
+	}
+	if (m_constantBuffer)
+	{
+		m_constantBuffer->Release();
+		m_constantBuffer = nullptr;
 	}
 }

@@ -7,6 +7,13 @@ struct Vertex
 	XMFLOAT4 Color;
 };
 
+struct SceneConstantBuffer
+{
+	XMFLOAT4 offset;
+	float padding[60]; // Padding so the constant buffer is 256-byte aligned.
+};
+static_assert((sizeof(SceneConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
+
 struct Vertex1 //이게 진짜고 위에거가 테스트
 {
 	XMFLOAT3 Pos;

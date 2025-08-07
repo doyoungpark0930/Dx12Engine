@@ -18,6 +18,7 @@ public:
 	ID3D12CommandAllocator* GetCommandAllocator() const { return m_commandAllocator; }
 	ID3D12CommandQueue* GetCommandQueue() const { return m_commandQueue; }
 	ID3D12PipelineState* GetPipeline() const { return m_pipelineState; }
+	ID3D12DescriptorHeap* GetDscHeap() const { return m_cbvHeap; }
 	ID3D12Fence* GetFence() const { return m_fence; }
 	HANDLE GetFenceEvent() const { return m_fenceEvent; }
 	UINT64* GetFenceValue() { return &m_fenceValue; }
@@ -42,6 +43,7 @@ private:
 	ID3D12CommandQueue* m_commandQueue;
 	ID3D12RootSignature* m_rootSignature;
 	ID3D12DescriptorHeap* m_rtvHeap;
+	ID3D12DescriptorHeap* m_cbvHeap;
 	ID3D12PipelineState* m_pipelineState;
 	ID3D12GraphicsCommandList* m_commandList;
 	UINT m_rtvDescriptorSize;
@@ -54,8 +56,8 @@ private:
 	UINT64 m_fenceValue;
 
 	Object* m_Objects;
-	UINT ObjectsNum = 2;
-
+	UINT ObjectsNum = 2; //오브젝트의 수
+	UINT ObjectCnt = -1;  //오브젝트가 몇 번째로 생성되었는지
 
 
 	void LoadAssets();
