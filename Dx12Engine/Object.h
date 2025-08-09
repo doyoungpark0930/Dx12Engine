@@ -9,13 +9,12 @@ public:
 	void Render();
 	void CreateVertexBuffer(Vertex* vertices, UINT vertexCount);
 	void CreateConstantBuffer();
-	void OnInit(UINT ObjectCnt, Vertex* vertices, UINT vertexCount);
+	void OnInit(UINT ObjectCnt);
 	Object();
 	~Object();
 
 private:
 	//Object Resource
-	ID3D12Resource* m_vertexBuffer;
 	D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
 	UINT m_vertexCount;
 

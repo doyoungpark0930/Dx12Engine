@@ -101,7 +101,6 @@ void Renderer::OnInit()
 	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 	swapChainDesc.SampleDesc.Count = 1;
-
 	IDXGISwapChain1* swapChain;
 	if (FAILED(factory->CreateSwapChainForHwnd(
 		m_commandQueue,        // Swap chain needs the queue so that it can force a flush on it.
@@ -301,25 +300,76 @@ void Renderer::LoadAssets()
 
 	Object::m_renderer = this;
 
-	Vertex* triangleVertices = CreateTriangleVertex();
-	Vertex* squareVertices = CreateSquareVertex();
-
 	m_Objects = new Object[ObjectsNum];
 
-	m_Objects[0].OnInit(++ObjectCnt,triangleVertices, 3);
-	m_Objects[1].OnInit(++ObjectCnt,squareVertices, 6);
-
-	if (triangleVertices)
+	for (int i = 0; i < ObjectsNum; i++)
 	{
-		delete triangleVertices;
-		triangleVertices = nullptr;
+		m_Objects[i].OnInit(++ObjectCnt);
 	}
 
-	if (squareVertices)
+	//create vertex buffer
 	{
-		delete squareVertices;
-		squareVertices = nullptr;
+		CD3DX12_HEAP_PROPERTIES defaultHeapProps(D3D12_HEAP_TYPE_DEFAULT);
+		CD3DX12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer(1024 * 1024);
+		if (FAILED(m_device->CreateCommittedResource(
+			&defaultHeapProps,
+			D3D12_HEAP_FLAG_NONE,
+			&resDesc,
+			D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+			nullptr,
+			IID_PPV_ARGS(&m_vsBufferPool)))) __debugbreak();
+
+		ID3D12Resource* vertexBufferUpload = nullptr;
+		CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
+		if (FAILED(m_device->CreateCommittedResource(
+			&uploadHeapProps,
+			D3D12_HEAP_FLAG_NONE,
+			&resDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(&m_vsUploadBufferPool)))) __debugbreak();
+
+		void* pData;
+		//
+		// No CPU reads will be done from the resource.
+		//
+		CD3DX12_RANGE readRange(0, 0);
+		m_vsUploadBufferPool->Map(0, &readRange, &pData);
+		m_VsCur = m_VsBegin = reinterpret_cast<UINT8*>(pData);
+		m_VsEnd = m_VsBegin + 1024 * 1024;
+
+		Vertex* triangleVertices = CreateTriangleVertex();
+		Vertex* squareVertices = CreateSquareVertex();
+
+		//Buffer들 Align요구사항 때문에, Buffer유형끼리 쭉 생성하고 다음 유형 생성하는게 좋음(VertexBuffer>ConstantBuffer>VertexBuffer>..이렇게 하지 말라는 의미)
+		m_Objects[0].CreateVertexBuffer(triangleVertices, 3);
+		m_Objects[1].CreateVertexBuffer(squareVertices, 6);
+
+		if (triangleVertices)
+		{
+			delete triangleVertices;
+			triangleVertices = nullptr;
+		}
+
+		if (squareVertices)
+		{
+			delete squareVertices;
+			squareVertices = nullptr;
+		}
 	}
+
+	for (int i = 0; i < ObjectsNum; i++)
+	{
+		m_Objects[i].CreateConstantBuffer();
+	}
+
+	if (m_vsUploadBufferPool)
+	{
+		m_vsUploadBufferPool->Release();
+		m_vsUploadBufferPool = nullptr;
+	}
+
+	
 
 	
 }
@@ -356,6 +406,7 @@ void Renderer::OnRender()
 	// Execute the command list.
 	ID3D12CommandList* ppCommandLists[] = { m_commandList };
 	m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+
 
 	// Present the frame.
 	m_swapChain->Present(1, 0);
@@ -496,6 +547,13 @@ Renderer::~Renderer()
 		m_fence->Release();
 		m_fence = nullptr;
 	}
+
+	if (m_vsBufferPool)
+	{
+		m_vsBufferPool->Release();
+		m_vsBufferPool = nullptr;
+	}
+
 
 	
 	delete[] m_Objects;

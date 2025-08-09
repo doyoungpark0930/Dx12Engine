@@ -22,6 +22,13 @@ public:
 	ID3D12Fence* GetFence() const { return m_fence; }
 	HANDLE GetFenceEvent() const { return m_fenceEvent; }
 	UINT64* GetFenceValue() { return &m_fenceValue; }
+	UINT GetObjectNum() const { return ObjectsNum; }
+
+	ID3D12Resource* m_vsBufferPool;
+	ID3D12Resource* m_vsUploadBufferPool;
+	UINT8* m_VsBegin = nullptr;    // starting position of upload buffer
+	UINT8* m_VsCur = nullptr;      // current position of upload buffer
+	UINT8* m_VsEnd = nullptr;      // ending position of upload buffer
 
 	Renderer(UINT width, UINT height);
 	~Renderer();
@@ -58,6 +65,7 @@ private:
 	Object* m_Objects;
 	UINT ObjectsNum = 2; //오브젝트의 수
 	UINT ObjectCnt = -1;  //오브젝트가 몇 번째로 생성되었는지
+
 
 
 	void LoadAssets();

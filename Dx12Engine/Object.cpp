@@ -2,6 +2,7 @@
 #include "VertexStruct.h"
 #include "Object.h"
 #include "Renderer.h"
+#include "DXUtil.h"
 
 Renderer* Object::m_renderer = nullptr;
 UINT Object::descriptorSize = 0;
@@ -18,51 +19,35 @@ Object::Object()
 	m_fenceValue = m_renderer->GetFenceValue();
 
 }
-
-void Object::OnInit(UINT ObjectCnt, Vertex* vertices, UINT vertexCount)
+//, Vertex* vertices, UINT vertexCount
+void Object::OnInit(UINT ObjectCnt)
 {
 	m_ObjectCnt = ObjectCnt;
 	if (m_ObjectCnt == 0)
 	{
-		descriptorSize= m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		descriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	}
-	CreateVertexBuffer(vertices, vertexCount);
 	m_constantBufferData = {};
-	CreateConstantBuffer();
 }
 
 void Object::CreateVertexBuffer(Vertex* vertices, UINT vertexCount)
 {
+
 	m_vertexCount = vertexCount;
-	const UINT vertexBufferSize = sizeof(Vertex) * vertexCount;
-
-	CD3DX12_HEAP_PROPERTIES defaultHeapProps(D3D12_HEAP_TYPE_DEFAULT);
-	CD3DX12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
-
-	if (FAILED(m_device->CreateCommittedResource(
-		&defaultHeapProps,
-		D3D12_HEAP_FLAG_NONE,
-		&resDesc,
-		D3D12_RESOURCE_STATE_COPY_DEST,
-		nullptr,
-		IID_PPV_ARGS(&m_vertexBuffer)))) __debugbreak();
-
-	ID3D12Resource* vertexBufferUpload = nullptr;
-	CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
-	if (FAILED(m_device->CreateCommittedResource(
-		&uploadHeapProps,
-		D3D12_HEAP_FLAG_NONE,
-		&resDesc,
-		D3D12_RESOURCE_STATE_GENERIC_READ,
-		nullptr,
-		IID_PPV_ARGS(&vertexBufferUpload)))) __debugbreak();
-
-
-	D3D12_SUBRESOURCE_DATA vertexData = {};
-	vertexData.pData = vertices;
-	vertexData.RowPitch = vertexBufferSize;
-	vertexData.SlicePitch = vertexData.RowPitch;
-
+	const UINT vertexBufferSize = sizeof(Vertex) * m_vertexCount;
+	
+	printf("%d: ", vertexBufferSize);
+	UINT verticesOffset = 0;
+	if (FAILED(
+		SetDataToUploadBuffer(
+			&(m_renderer->m_VsCur),
+			m_renderer->m_VsBegin,
+			m_renderer->m_VsEnd,
+			vertices, sizeof(Vertex), vertexCount,
+			sizeof(float),
+			verticesOffset
+		)))__debugbreak();
+	
 	if (FAILED(m_commandAllocator->Reset())) __debugbreak();
 
 	// However, when ExecuteCommandList() is called on a particular command 
@@ -70,13 +55,14 @@ void Object::CreateVertexBuffer(Vertex* vertices, UINT vertexCount)
 	// re-recording.
 	if (FAILED(m_commandList->Reset(m_commandAllocator, m_pipelineState))) __debugbreak();
 
-	UpdateSubresources(m_commandList, m_vertexBuffer, vertexBufferUpload, 0, 0, 1, &vertexData); //이거 하면 Map/UnMap할 필요없음
-
-	CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-		m_vertexBuffer,
-		D3D12_RESOURCE_STATE_COPY_DEST,
-		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+	CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderer->m_vsBufferPool, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, D3D12_RESOURCE_STATE_COPY_DEST);
 	m_commandList->ResourceBarrier(1, &barrier);
+
+	m_commandList->CopyBufferRegion(m_renderer->m_vsBufferPool, verticesOffset, m_renderer->m_vsUploadBufferPool, verticesOffset, vertexBufferSize);
+	
+	barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderer->m_vsBufferPool, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+	m_commandList->ResourceBarrier(1, &barrier);
+
 	if (FAILED(m_commandList->Close())) __debugbreak();
 
 	ID3D12CommandList* ppCommandLists[] = { m_commandList };
@@ -84,15 +70,9 @@ void Object::CreateVertexBuffer(Vertex* vertices, UINT vertexCount)
 
 	WaitForPreviousFrame();
 
-	m_vertexBufferView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
+	m_vertexBufferView.BufferLocation = m_renderer->m_vsBufferPool->GetGPUVirtualAddress() + verticesOffset;
 	m_vertexBufferView.StrideInBytes = sizeof(Vertex);
 	m_vertexBufferView.SizeInBytes = vertexBufferSize;
-
-	if (vertexBufferUpload)
-	{
-		vertexBufferUpload->Release();
-		vertexBufferUpload = nullptr;
-	}
 
 }
 
@@ -156,11 +136,6 @@ void Object::WaitForPreviousFrame()
 Object::~Object()
 {
 	//WaitForPreviousFrame(); gpu올라오기 전에 종료해버린다면 의미가 잇을수도
-	if (m_vertexBuffer)
-	{
-		m_vertexBuffer->Release();
-		m_vertexBuffer = nullptr;
-	}
 	if (m_constantBuffer)
 	{
 		m_constantBuffer->Release();

@@ -80,3 +80,59 @@ void GetHardwareAdapter(
 		factory6 = nullptr;
 	}
 }
+
+
+//https://learn.microsoft.com/en-us/windows/win32/direct3d12/uploading-resources
+HRESULT SuballocateFromBuffer(UINT8** m_pDataCur, UINT8* m_pDataEnd, SIZE_T uSize, UINT uAlign)
+{
+	*m_pDataCur = reinterpret_cast<UINT8*>(
+		Align(reinterpret_cast<SIZE_T>(*m_pDataCur), uAlign)
+		);
+
+	return (*m_pDataCur + uSize > m_pDataEnd) ? E_INVALIDARG : S_OK;
+}
+
+//
+// Place and copy data to the upload buffer.
+//
+
+HRESULT SetDataToUploadBuffer(
+	UINT8** m_pDataCur, 
+	UINT8* m_pDataBegin,
+	UINT8* m_pDataEnd,
+	const void* pData,
+	UINT bytesPerData,
+	UINT dataCount,
+	UINT alignment,
+	UINT& byteOffset
+)
+{
+	SIZE_T byteSize = bytesPerData * dataCount;
+	HRESULT hr = SuballocateFromBuffer(m_pDataCur, m_pDataEnd, byteSize, alignment);
+	if (SUCCEEDED(hr))
+	{
+		byteOffset = UINT(*m_pDataCur - m_pDataBegin);
+		printf("%d\n", byteOffset);
+		memcpy(*m_pDataCur, pData, byteSize);
+		*m_pDataCur += byteSize;
+	}
+
+	return hr;
+}
+
+//
+// Align uLocation to the next multiple of uAlign.
+//
+
+SIZE_T Align(SIZE_T uLocation, SIZE_T uAlign)
+{
+	if ((0 == uAlign) || (uAlign & (uAlign - 1))) // uAlign이 0이거나 2의 거듭제곱(1,2,4,8...)이 아니면 예외 발생
+	{
+		throw std::exception();
+	}
+
+	// uLocation을 uAlign 배수로 올림 (정렬)
+   // 예: uAlign = 256, uLocation = 8 → 256 반환
+   // 비트 마스크를 이용하여 가장 가까운 uAlign 배수로 맞춘다.
+	return ((uLocation + (uAlign - 1)) & ~(uAlign - 1)); 
+}
