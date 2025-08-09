@@ -112,7 +112,6 @@ HRESULT SetDataToUploadBuffer(
 	if (SUCCEEDED(hr))
 	{
 		byteOffset = UINT(*m_pDataCur - m_pDataBegin);
-		printf("%d\n", byteOffset);
 		memcpy(*m_pDataCur, pData, byteSize);
 		*m_pDataCur += byteSize;
 	}

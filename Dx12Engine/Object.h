@@ -18,7 +18,6 @@ private:
 	D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
 	UINT m_vertexCount;
 
-	ID3D12Resource* m_constantBuffer;
 
 	ID3D12Device* m_device = nullptr;
 	ID3D12GraphicsCommandList* m_commandList;
@@ -38,6 +37,7 @@ public:
 	UINT m_ObjectCnt = -1;
 	UINT8* m_pCbvDataBegin;
 	SceneConstantBuffer m_constantBufferData;
+	UINT constantOffset = 0;
 
 	static UINT descriptorSize;
 

@@ -26,9 +26,14 @@ public:
 
 	ID3D12Resource* m_vsBufferPool;
 	ID3D12Resource* m_vsUploadBufferPool;
-	UINT8* m_VsBegin = nullptr;    // starting position of upload buffer
-	UINT8* m_VsCur = nullptr;      // current position of upload buffer
-	UINT8* m_VsEnd = nullptr;      // ending position of upload buffer
+	UINT8* m_vsBegin = nullptr;    // starting position of upload buffer
+	UINT8* m_vsCur = nullptr;      // current position of upload buffer
+	UINT8* m_vsEnd = nullptr;      // ending position of upload buffer
+
+	ID3D12Resource* m_constantUploadBufferPool;
+	UINT8* m_constantBegin = nullptr;    // starting position of upload buffer
+	UINT8* m_constantCur = nullptr;      // current position of upload buffer
+	UINT8* m_constantEnd = nullptr;      // ending position of upload buffer
 
 	Renderer(UINT width, UINT height);
 	~Renderer();

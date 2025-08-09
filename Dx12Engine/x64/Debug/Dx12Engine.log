@@ -1,19 +1,4 @@
-﻿  Renderer.cpp
-C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(137,86): warning C4390: ';': empty controlled statement found; is this the intent?
-  (compiling source file '/Renderer.cpp')
-  
-C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(148,77): warning C4390: ';': empty controlled statement found; is this the intent?
-  (compiling source file '/Renderer.cpp')
-  
-C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(305,20): warning C4018: '<': signed/unsigned mismatch
-  (compiling source file '/Renderer.cpp')
-  
-C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(361,20): warning C4018: '<': signed/unsigned mismatch
-  (compiling source file '/Renderer.cpp')
-  
-C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(448,20): warning C4018: '<': signed/unsigned mismatch
-  (compiling source file '/Renderer.cpp')
-  
+﻿  DXUtil.cpp
   Dx12Engine.vcxproj -> C:\Users\Lenovo\source\repos\Dx12Engine\x64\Debug\Dx12Engine.exe
   'pwsh.exe'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
   배치 파일이 아닙니다.

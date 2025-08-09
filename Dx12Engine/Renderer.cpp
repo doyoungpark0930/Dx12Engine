@@ -28,9 +28,9 @@ Renderer::Renderer(UINT width, UINT height)
 
 	m_scissorRect.left = 0;
 	m_scissorRect.top = 0;
-	m_scissorRect.right = clientWidth;   
+	m_scissorRect.right = clientWidth;
 	m_scissorRect.bottom = clientHeight;
-	
+
 
 	WCHAR assetsPath[512];
 	GetAssetsPath(assetsPath, _countof(assetsPath));
@@ -259,7 +259,7 @@ void Renderer::LoadAssets()
 			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 			{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 		};
-		
+
 		// Describe and create the graphics pipeline state object (PSO).
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
 		psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
@@ -309,8 +309,9 @@ void Renderer::LoadAssets()
 
 	//create vertex buffer
 	{
+		UINT64 vertexMemory = 1024 * 1024;
 		CD3DX12_HEAP_PROPERTIES defaultHeapProps(D3D12_HEAP_TYPE_DEFAULT);
-		CD3DX12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer(1024 * 1024);
+		CD3DX12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexMemory);
 		if (FAILED(m_device->CreateCommittedResource(
 			&defaultHeapProps,
 			D3D12_HEAP_FLAG_NONE,
@@ -319,7 +320,6 @@ void Renderer::LoadAssets()
 			nullptr,
 			IID_PPV_ARGS(&m_vsBufferPool)))) __debugbreak();
 
-		ID3D12Resource* vertexBufferUpload = nullptr;
 		CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
 		if (FAILED(m_device->CreateCommittedResource(
 			&uploadHeapProps,
@@ -330,18 +330,14 @@ void Renderer::LoadAssets()
 			IID_PPV_ARGS(&m_vsUploadBufferPool)))) __debugbreak();
 
 		void* pData;
-		//
-		// No CPU reads will be done from the resource.
-		//
 		CD3DX12_RANGE readRange(0, 0);
 		m_vsUploadBufferPool->Map(0, &readRange, &pData);
-		m_VsCur = m_VsBegin = reinterpret_cast<UINT8*>(pData);
-		m_VsEnd = m_VsBegin + 1024 * 1024;
+		m_vsCur = m_vsBegin = reinterpret_cast<UINT8*>(pData);
+		m_vsEnd = m_vsBegin + vertexMemory;
 
 		Vertex* triangleVertices = CreateTriangleVertex();
 		Vertex* squareVertices = CreateSquareVertex();
 
-		//Buffer들 Align요구사항 때문에, Buffer유형끼리 쭉 생성하고 다음 유형 생성하는게 좋음(VertexBuffer>ConstantBuffer>VertexBuffer>..이렇게 하지 말라는 의미)
 		m_Objects[0].CreateVertexBuffer(triangleVertices, 3);
 		m_Objects[1].CreateVertexBuffer(squareVertices, 6);
 
@@ -358,9 +354,30 @@ void Renderer::LoadAssets()
 		}
 	}
 
-	for (int i = 0; i < ObjectsNum; i++)
+	//create constant buffer
 	{
-		m_Objects[i].CreateConstantBuffer();
+		UINT64 constantMemory = sizeof(SceneConstantBuffer) * (ObjectsNum+1);
+		CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
+		CD3DX12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer(constantMemory);
+		if (FAILED(m_device->CreateCommittedResource(
+			&uploadHeapProps,
+			D3D12_HEAP_FLAG_NONE,
+			&resDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(&m_constantUploadBufferPool))))	__debugbreak();
+
+		void* pData;
+		CD3DX12_RANGE readRange(0, 0);
+		m_constantUploadBufferPool->Map(0, &readRange, &pData);
+		m_constantCur = m_constantBegin = reinterpret_cast<UINT8*>(pData);
+		m_constantEnd = m_constantBegin + constantMemory;
+
+
+		for (int i = 0; i < ObjectsNum; i++)
+		{
+			m_Objects[i].CreateConstantBuffer();
+		}
 	}
 
 	if (m_vsUploadBufferPool)
@@ -369,9 +386,9 @@ void Renderer::LoadAssets()
 		m_vsUploadBufferPool = nullptr;
 	}
 
-	
 
-	
+
+
 }
 
 
@@ -386,14 +403,14 @@ void Renderer::OnUpdate()
 	{
 		m_Objects[0].m_constantBufferData.offset.x = -offsetBounds;
 	}
-	memcpy(m_Objects[0].m_pCbvDataBegin, &m_Objects[0].m_constantBufferData, sizeof(m_Objects[0].m_constantBufferData));
+	memcpy(m_constantBegin + m_Objects[0].constantOffset, &m_Objects[0].m_constantBufferData, sizeof(SceneConstantBuffer));
 
-	m_Objects[1].m_constantBufferData.offset.x += translationSpeed*0.5f;
+	m_Objects[1].m_constantBufferData.offset.x += translationSpeed * 0.5f;
 	if (m_Objects[1].m_constantBufferData.offset.x > offsetBounds)
 	{
 		m_Objects[1].m_constantBufferData.offset.x = -offsetBounds;
 	}
-	memcpy(m_Objects[1].m_pCbvDataBegin, &m_Objects[1].m_constantBufferData, sizeof(m_Objects[1].m_constantBufferData));
+	memcpy(m_constantBegin + m_Objects[1].constantOffset, &m_Objects[1].m_constantBufferData, sizeof(SceneConstantBuffer));
 }
 
 
@@ -450,7 +467,7 @@ void Renderer::PopulateCommandList()
 		m_Objects[i].Render();
 	}
 
-	barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET ,D3D12_RESOURCE_STATE_PRESENT);
+	barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 	// Indicate that the back buffer will now be used to present.
 	m_commandList->ResourceBarrier(1, &barrier);
 
@@ -554,8 +571,14 @@ Renderer::~Renderer()
 		m_vsBufferPool = nullptr;
 	}
 
+	if (m_constantUploadBufferPool)
+	{
+		m_constantUploadBufferPool->Release();
+		m_constantUploadBufferPool = nullptr;
+	}
 
-	
+
+
 	delete[] m_Objects;
 	m_Objects = nullptr;
 

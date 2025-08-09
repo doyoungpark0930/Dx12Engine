@@ -32,22 +32,20 @@ void Object::OnInit(UINT ObjectCnt)
 
 void Object::CreateVertexBuffer(Vertex* vertices, UINT vertexCount)
 {
-
 	m_vertexCount = vertexCount;
 	const UINT vertexBufferSize = sizeof(Vertex) * m_vertexCount;
-	
-	printf("%d: ", vertexBufferSize);
+
 	UINT verticesOffset = 0;
 	if (FAILED(
 		SetDataToUploadBuffer(
-			&(m_renderer->m_VsCur),
-			m_renderer->m_VsBegin,
-			m_renderer->m_VsEnd,
+			&(m_renderer->m_vsCur),
+			m_renderer->m_vsBegin,
+			m_renderer->m_vsEnd,
 			vertices, sizeof(Vertex), vertexCount,
 			sizeof(float),
 			verticesOffset
 		)))__debugbreak();
-	
+
 	if (FAILED(m_commandAllocator->Reset())) __debugbreak();
 
 	// However, when ExecuteCommandList() is called on a particular command 
@@ -59,7 +57,7 @@ void Object::CreateVertexBuffer(Vertex* vertices, UINT vertexCount)
 	m_commandList->ResourceBarrier(1, &barrier);
 
 	m_commandList->CopyBufferRegion(m_renderer->m_vsBufferPool, verticesOffset, m_renderer->m_vsUploadBufferPool, verticesOffset, vertexBufferSize);
-	
+
 	barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderer->m_vsBufferPool, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 	m_commandList->ResourceBarrier(1, &barrier);
 
@@ -80,34 +78,25 @@ void Object::CreateConstantBuffer()
 {
 	const UINT constantBufferSize = sizeof(SceneConstantBuffer);    // CB size is required to be 256-byte aligned.
 
-	CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
-	CD3DX12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer(constantBufferSize);
-
-	if (FAILED(m_device->CreateCommittedResource(
-		&heapProps,
-		D3D12_HEAP_FLAG_NONE,
-		&resDesc,
-		D3D12_RESOURCE_STATE_GENERIC_READ,
-		nullptr,
-		IID_PPV_ARGS(&m_constantBuffer))))
-	{
-		__debugbreak();
-	}
+	if (FAILED(
+		SetDataToUploadBuffer(
+			&(m_renderer->m_constantCur),
+			m_renderer->m_constantBegin,
+			m_renderer->m_constantEnd,
+			&m_constantBufferData, sizeof(SceneConstantBuffer), 1,
+			D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT,
+			constantOffset
+		)))__debugbreak();
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cbvHandle(m_cbvHeap->GetCPUDescriptorHandleForHeapStart());
 	cbvHandle.Offset(m_ObjectCnt, descriptorSize);
 
 	// Describe and create a constant buffer view.
 	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-	cbvDesc.BufferLocation = m_constantBuffer->GetGPUVirtualAddress();
+	cbvDesc.BufferLocation = m_renderer->m_constantUploadBufferPool->GetGPUVirtualAddress() + constantOffset;
 	cbvDesc.SizeInBytes = constantBufferSize;
 	m_device->CreateConstantBufferView(&cbvDesc, cbvHandle);
 
-	// Map and initialize the constant buffer. We don't unmap this until the
-	// app closes. Keeping things mapped for the lifetime of the resource is okay.
-	CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
-	if (FAILED(m_constantBuffer->Map(0, &readRange, reinterpret_cast<void**>(&m_pCbvDataBegin)))) __debugbreak();
-	memcpy(m_pCbvDataBegin, &m_constantBufferData, sizeof(m_constantBufferData));
 }
 void Object::Render()
 {
@@ -136,9 +125,4 @@ void Object::WaitForPreviousFrame()
 Object::~Object()
 {
 	//WaitForPreviousFrame(); gpu올라오기 전에 종료해버린다면 의미가 잇을수도
-	if (m_constantBuffer)
-	{
-		m_constantBuffer->Release();
-		m_constantBuffer = nullptr;
-	}
 }
