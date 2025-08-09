@@ -6,3 +6,5 @@ Release가 아닌 Debug전용
   (system=>선택적기능=>graphics tool 있는상태, system =>개발자용=>개발자모드 on)
 
 window10이상에서 외부 gpu연동 가능(window10미만은 내장 gpu이용됨)
+
+리소스들을 suballocate를 통해 연속 메모리로 관리
