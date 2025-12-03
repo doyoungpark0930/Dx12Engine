@@ -17,6 +17,7 @@ public:
 
 	UINT GetWidth() const { return clientWidth; }
 	UINT GetHeight() const { return clientHeight; }
+	FLOAT GetAspect() const { return aspect; }
 
 	ID3D12Device* GetDevice() const { return m_device; }
 	ID3D12GraphicsCommandList* GetCommandList() const { return m_commandList; }
@@ -96,18 +97,11 @@ private:
 	Matrix View;
 	Matrix Proj;
 
-	FLOAT fovY = XM_PIDIV4;
 	FLOAT aspect;
-	FLOAT nearZ = 0.1f;
-	FLOAT farZ = 100.0f;
 
 	Animator* m_animator = nullptr;
 	Animation* m_animations = nullptr;
 
-	Vector3 eyePos = Vector3(0.0f, 0.0f, -5.0f);
-	Vector3 lookAt = Vector3(0.0f, 0.0f, 0.0f);
-	Vector3 up = Vector3(0.0f, 1.0f, 0.0f);
-	//Vector3 lightPos = Vector3(1.0f, 0.5f, -0.5f);
 	Vector3 lightPos = Vector3(0.0f, 0.5f, -2.0f);
 
 

@@ -1,8 +1,9 @@
 #pragma once
 
+class Renderer;
+
 extern bool m_keyPressed[256];
 
-class Renderer;
 
 class WinApp
 {
@@ -11,9 +12,9 @@ public:
     static HWND GetHwnd() { return m_hwnd; }
     static Renderer* m_renderer;
 
-
 protected:
     static LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+    static void OnMouseMove(int mouseX, int mouseY);
 
 private:
     static HWND m_hwnd;

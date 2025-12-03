@@ -1,11 +1,36 @@
-﻿  Renderer.cpp
+﻿  Camera.cpp
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Camera.h(29,29): warning C4305: 'initializing': truncation from 'double' to 'float'
+  (compiling source file '/Camera.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Camera.cpp(22,24): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+  (compiling source file '/Camera.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Camera.cpp(23,27): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+  (compiling source file '/Camera.cpp')
+  
+  Renderer.cpp
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Camera.h(29,29): warning C4305: 'initializing': truncation from 'double' to 'float'
+  (compiling source file '/Renderer.cpp')
+  
 C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Animation.h(16,47): warning C4244: 'return': conversion from 'int' to 'float', possible loss of data
   (compiling source file '/Renderer.cpp')
   
 C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(168,77): warning C4390: ';': empty controlled statement found; is this the intent?
   (compiling source file '/Renderer.cpp')
   
-C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(712,35): warning C4305: '=': truncation from 'double' to 'float'
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(714,35): warning C4305: '=': truncation from 'double' to 'float'
   (compiling source file '/Renderer.cpp')
   
+  WinApp.cpp
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Camera.h(29,29): warning C4305: 'initializing': truncation from 'double' to 'float'
+  (compiling source file '/WinApp.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\WinApp.cpp(35,43): warning C4838: conversion from 'UINT' to 'LONG' requires a narrowing conversion
+  (compiling source file '/WinApp.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\WinApp.cpp(35,68): warning C4838: conversion from 'UINT' to 'LONG' requires a narrowing conversion
+  (compiling source file '/WinApp.cpp')
+  
+  Generating Code...
+     Creating library C:\Users\Lenovo\source\repos\Dx12Engine\x64\Debug\Dx12Engine.lib and object C:\Users\Lenovo\source\repos\Dx12Engine\x64\Debug\Dx12Engine.exp
   Dx12Engine.vcxproj -> C:\Users\Lenovo\source\repos\Dx12Engine\x64\Debug\Dx12Engine.exe

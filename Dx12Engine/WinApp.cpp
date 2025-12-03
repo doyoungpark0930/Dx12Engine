@@ -1,6 +1,8 @@
 #include "pch.h"
-#include "winApp.h"
 #include "Renderer.h"
+#include "Camera.h"
+#include "DXUtil.h"
+#include "winApp.h"
 #include <iostream>
 Renderer* WinApp::m_renderer = nullptr;
 HWND WinApp::m_hwnd = nullptr;
@@ -8,15 +10,19 @@ DWORD	g_FrameCount = 0;
 ULONGLONG g_PrvFrameCheckTick = 0;
 ULONGLONG g_LastFrameTick = 0;
 
+float m_cursorNdcX = 0;
+float m_cursorNdcY = 0;
+float deltaTime = 0.0f;
+
 bool m_keyPressed[256] =
 {
     false,
 };
-float deltaTime = 0.0f;
+
 int WinApp::Run(HINSTANCE hInstance, int nCmdShow, const wchar_t CLASS_NAME[], UINT width, UINT height)
 {
     m_renderer = new Renderer(width, height);
-
+    camera.SetAspect(m_renderer->GetAspect());
     WNDCLASS wc = { };
 
     wc.lpfnWndProc = WindowProc;
@@ -132,9 +138,32 @@ LRESULT CALLBACK WinApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
         // 키보드가 눌린 상태인지 아닌지 저장
         m_keyPressed[wParam] = false;
         break;
+
+    case WM_MOUSEMOVE:
+        OnMouseMove(LOWORD(lParam), HIWORD(lParam));
+        break;
     return 0;
 
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
+void WinApp::OnMouseMove(int mouseX, int mouseY) {
+
+    // 마우스 커서의 위치를 NDC로 변환
+    // 마우스 커서는 좌측 상단 (0, 0), 우측 하단(width-1, height-1)
+    // NDC는 좌측 하단이 (-1, -1), 우측 상단(1, 1)
+    m_cursorNdcX = mouseX * 2.0f / m_renderer->GetWidth() - 1.0f;
+    m_cursorNdcY = -mouseY * 2.0f / m_renderer->GetHeight() + 1.0f;
+
+    // 커서가 화면 밖으로 나갔을 경우 범위 조절
+    // 게임에서는 클램프를 안할 수도 있습니다.
+    m_cursorNdcX = clamp(m_cursorNdcX, -1.0f, 1.0f);
+    m_cursorNdcY = clamp(m_cursorNdcY, -1.0f, 1.0f);
+
+    //std::cout << "x : " << mouseX << " " << m_cursorNdcX << std::endl;
+    //std::cout << "y : " << mouseY << " " << m_cursorNdcY << std::endl;
+
+    // 카메라 시점 회전
+    camera.UpdateMouse(m_cursorNdcX, m_cursorNdcY);
+}

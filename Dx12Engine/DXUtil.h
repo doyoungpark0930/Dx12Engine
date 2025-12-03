@@ -31,3 +31,9 @@ void ReverseIndices(UINT* indices, UINT indicesNum);
 Matrix GetObjectWorldMatrix(const ObjectState& state);
 
 char* MakeFilePath(const wchar_t* basePath, const char* subFolder, const char* fileName);
+
+template <typename T>
+const T& clamp(const T& v, const T& lo, const T& hi)
+{
+	return (v < lo) ? lo : (hi < v) ? hi : v;
+}

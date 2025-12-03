@@ -2,6 +2,7 @@
 #include "DescriptorPool.h"
 #include "SrvManager.h"
 #include "CbvManager.h"
+#include "Camera.h"
 #include "WinApp.h"
 #include "CommonStructs.h"
 
@@ -45,7 +46,6 @@ Renderer::Renderer(UINT width, UINT height)
 	wchar_t assetsPath[512];
 	GetResourcesPath(assetsPath, _countof(assetsPath));
 	wcscpy_s(DXUtil::m_assetsResourcesPath, assetsPath);
-	//wprintf(L"DXUtil::m_assetsResourcesPath = %ls\n", DXUtil::m_assetsResourcesPath);
 
 }
 
@@ -662,22 +662,24 @@ void Renderer::CreateModels()
 void Renderer::OnInitGlobalConstant()
 {
 	GLOBAL_CONSTANT* globalConstant = (GLOBAL_CONSTANT*)(m_cbvManager->GetStartCBV() + 0);
-	View = XMMatrixLookAtLH(eyePos, lookAt, up);
-	Proj = XMMatrixPerspectiveFovLH(fovY, aspect, nearZ, farZ);
+	View = camera.GetViewRow();
+	Proj = camera.GetProjRow();
 	globalConstant->ViewProj = (View * Proj).Transpose();
-	globalConstant->eyePos = Vector4(eyePos.x, eyePos.y, eyePos.z, 1.0f);
+	globalConstant->eyePos = Vector4(camera.m_eyePos.x, camera.m_eyePos.y, camera.m_eyePos.z, 1.0f);
 	globalConstant->lightPos = Vector4(lightPos.x, lightPos.y, lightPos.z, 1.0f);
 
 }
 
 // Update frame-based values.
 void Renderer::Update(float dt)
-{
+{ 
+	camera.UpdateKeyboard(dt, m_keyPressed);
+
 	//globalConstant Update
 	GLOBAL_CONSTANT* globalConstant = (GLOBAL_CONSTANT*)(m_cbvManager->GetStartCBV() + 0);
-	View = XMMatrixLookAtLH(eyePos, lookAt, up);
+	View = camera.GetViewRow();
 	globalConstant->ViewProj = (View * Proj).Transpose();
-	globalConstant->eyePos = Vector4(eyePos.x, eyePos.y, eyePos.z, 1.0f);
+	globalConstant->eyePos = Vector4(camera.m_eyePos.x, camera.m_eyePos.y, camera.m_eyePos.z, 1.0f);
 	globalConstant->lightPos = Vector4(lightPos.x, lightPos.y, lightPos.z, 1.0f);
 
 	int animIndex = GetAnimationIndexFromKey();
