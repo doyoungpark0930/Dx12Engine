@@ -40,14 +40,13 @@ OS: Windows 10 이상 (10 미만은 내장 GPU 사용)
 ## 주요 구현 내용
 DirectX12 이용
 
-3ds max sdk를 통한 Export plug-in 제작 및 자체 포멧 시스템을 통한 모델로딩 및 스키닝, 애니메이션 적용
-=> mesh 포멧(.dy) 와 animation 포멧(.ani)로 분리하고 각각 따로 로딩 적용
-
-애니메이션 변환 간 blending
-
-mixamo, cgtrader, sketchfab, Unity asset store등 다양한 사이트에서 모델 다운로드 후 정리 과정을 거친 export
+3ds max Export plug-in 제작.
+자체포멧(mesh,ani파일 분리)형성 및 모델로딩
+애니메이션 스키닝, 애니메이션 변환간 블렌딩
 
 MultiMaterial 시스템 적용
+
+mixamo, cgtrader, sketchfab, Unity asset store등 다양한 사이트에서 모델 다운로드 후 정리 과정을 거친 export
 
 cubemapping
 
