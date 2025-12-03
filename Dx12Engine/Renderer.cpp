@@ -741,7 +741,7 @@ void Renderer::ObjectRender()
 	m_commandList->SetGraphicsRootSignature(m_rootSignature_CubeMap);
 	m_Models[1].DrawCubeMap(&object3_Matrix);
 
-	//ground
+	//ground 
 	m_commandList->SetPipelineState(m_GeneralPSO);
 	m_commandList->SetGraphicsRootSignature(m_rootSignature_General);
 	m_Models[2].DrawGeneralMesh(&object4_Matrix);
