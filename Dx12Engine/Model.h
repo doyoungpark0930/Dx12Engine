@@ -48,7 +48,10 @@ private:
 	//MultiMaterial이 아닐 때, TriGroup을 사용하는게 아닌 IndexBuffer쓰임
 	D3D12_INDEX_BUFFER_VIEW IndexBufferView;
 	int indexCnt = 0;
+
+	//srvContainer(MultiMaterial아닌 경우에만 사용)
 	SRV_CONTAINER* m_srvContainer = nullptr;
+	SRV_CONTAINER* m_srvContainer_CubeMap = nullptr;
 
 	//MaterialConstant
 	CBV_CONTAINER* materialContainer = nullptr;

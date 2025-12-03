@@ -29,3 +29,5 @@ int GetAnimationIndexFromKey();
 void ReverseIndices(UINT* indices, UINT indicesNum);
 
 Matrix GetObjectWorldMatrix(const ObjectState& state);
+
+char* MakeFilePath(const wchar_t* basePath, const char* subFolder, const char* fileName);

@@ -606,13 +606,7 @@ void Renderer::Create_Vertex_Index()
 	}
 
 }
-void Renderer::inputTexFilename(char* basePath, const char* fileName, char** TexFileToInput)
-{
-	char* fullPath = new char[256];
-	strcpy_s(fullPath, 256, basePath);
-	strcat_s(fullPath, 256, fileName);
-	*TexFileToInput = fullPath;
-}
+
 void Renderer::CreateModels()
 {
 	char basePath[512];
@@ -638,26 +632,28 @@ void Renderer::CreateModels()
 
 
 	//CubeMap
-	char* cubeMapPath = new char[512];
-	WideCharToMultiByte(CP_UTF8, 0, DXUtil::m_assetsResourcesPath, -1, cubeMapPath, 512, NULL, NULL);
-	strcat_s(cubeMapPath, 512, "Cubemap\\HDRI\\Mountain\\");
-	const char* cubeMapName = "mountainEnvHDR.dds";
-	strcat_s(cubeMapPath, 512, cubeMapName);
-
+	char* cubeMapPath = MakeFilePath(DXUtil::m_assetsResourcesPath, "Cubemap\\HDRI\\Mountain\\",
+		"mountainEnvHDR.dds");
 	JustMeshData cubeMapping = GeometryGenerator::MakeBox(20.0f);
 	ReverseIndices(cubeMapping.indices, cubeMapping.indicesNum);
 	cubeMapping.albedoTexFilename = cubeMapPath;
 	m_Models[1].CreateCubeMap(cubeMapping);
 
 	//Ground
-	char* groundPath = new char[512];
-	WideCharToMultiByte(CP_UTF8, 0, DXUtil::m_assetsResourcesPath, -1, groundPath, 512, NULL, NULL);
-	strcat_s(groundPath, 512, "PBR\\TCom_Ground_Soil18_2.5x2.5_2K\\");
-	const char* groundName = "TCom_Ground_Soil18_2.5x2.5_2K_albedo.tif";
-	strcat_s(groundPath, 512, groundName);
+	char* groundAlbedoPath = MakeFilePath(DXUtil::m_assetsResourcesPath, "PBR\\TCom_Ground_Soil18_2.5x2.5_2K\\",
+		"TCom_Ground_Soil18_2.5x2.5_2K_albedo.tif");
+	char* groundAoPath = MakeFilePath(DXUtil::m_assetsResourcesPath, "PBR\\TCom_Ground_Soil18_2.5x2.5_2K\\",
+		"TCom_Ground_Soil18_2.5x2.5_2K_ao.tif");
+	char* groundNormalPath = MakeFilePath(DXUtil::m_assetsResourcesPath, "PBR\\TCom_Ground_Soil18_2.5x2.5_2K\\",
+		"TCom_Ground_Soil18_2.5x2.5_2K_normal.tif");
+	char* groundRoughnessPath = MakeFilePath(DXUtil::m_assetsResourcesPath, "PBR\\TCom_Ground_Soil18_2.5x2.5_2K\\",
+		"TCom_Ground_Soil18_2.5x2.5_2K_roughness.tif");
 
 	JustMeshData ground = GeometryGenerator::MakeSquare(1.0f);
-	ground.albedoTexFilename = groundPath;
+	ground.albedoTexFilename = groundAlbedoPath;
+	ground.aoTexFilename = groundAoPath;
+	ground.normalTexFilename = groundNormalPath;
+	ground.roughnessTexFilename = groundRoughnessPath;
 	m_Models[2].CreateGeneralModel(ground);
 
 	m_ObjectState = new ObjectState[maxObjectsNum];
@@ -704,10 +700,12 @@ void Renderer::Update(float dt)
 	m_ObjectState[2].scale.z = 2.0f;
 	m_ObjectState[2].pos.x = 2.0f;
 
+	//cubemap
 	m_ObjectState[3].scale.x = 1.0f;
 	m_ObjectState[3].scale.y = 1.0f;
 	m_ObjectState[3].scale.z = 1.0f;
 
+	//ground
 	m_ObjectState[4].scale.x = 20.0f;
 	m_ObjectState[4].scale.y = 20.0f;
 	m_ObjectState[4].scale.z = 1.0f;
@@ -741,7 +739,7 @@ void Renderer::ObjectRender()
 	m_commandList->SetGraphicsRootSignature(m_rootSignature_CubeMap);
 	m_Models[1].DrawCubeMap(&object3_Matrix);
 
-	//ground 
+	//ground
 	m_commandList->SetPipelineState(m_GeneralPSO);
 	m_commandList->SetGraphicsRootSignature(m_rootSignature_General);
 	m_Models[2].DrawGeneralMesh(&object4_Matrix);

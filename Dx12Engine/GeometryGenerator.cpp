@@ -83,6 +83,11 @@ JustMeshData GeometryGenerator::MakeSquare(const float scale) {
 	vertices[2].Tex = Vector2(1.0f, 1.0f);
 	vertices[3].Tex = Vector2(0.0f, 1.0f);
 
+	vertices[0].tangent = Vector3(1.0f, 0.0f, 0.0f);
+	vertices[1].tangent = Vector3(1.0f, 0.0f, 0.0f);
+	vertices[2].tangent = Vector3(1.0f, 0.0f, 0.0f);
+	vertices[3].tangent = Vector3(1.0f, 0.0f, 0.0f);
+
 	UINT temp[6] = {
 		0, 1, 2, 0, 2, 3
 	};

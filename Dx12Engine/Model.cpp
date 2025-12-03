@@ -131,8 +131,8 @@ void Model::CreateCubeMap(JustMeshData& meshData)
 
 	if (meshData.albedoTexFilename)
 	{
-		m_srvContainer = new SRV_CONTAINER[1];
-		CreateCubeTextureFromName(meshData.albedoTexFilename, m_srvContainer[0]);
+		m_srvContainer_CubeMap = new SRV_CONTAINER;
+		CreateCubeTextureFromName(meshData.albedoTexFilename, *m_srvContainer_CubeMap);
 	}
 
 	SafeDeleteArray(&meshData.vertices);
@@ -148,20 +148,29 @@ void Model::CreateGeneralModel(JustMeshData& meshData)
 	IndexBufferView = CreateIndexBuffer(meshData.indices, meshData.indicesNum);
 	indexCnt = meshData.indicesNum;
 
-	//일단 임시로 Cube처럼 함
+	m_srvContainer = new SRV_CONTAINER[MAX_TEXTURE_NUM];
 	if (meshData.albedoTexFilename)
-	{
-		m_srvContainer = new SRV_CONTAINER[1];
 		CreateTextureFromName(meshData.albedoTexFilename, m_srvContainer[0]);
-	}
+	if (meshData.aoTexFilename)
+		CreateTextureFromName(meshData.aoTexFilename, m_srvContainer[1]);
+	if (meshData.normalTexFilename)
+		CreateTextureFromName(meshData.normalTexFilename, m_srvContainer[2]);
+	if (meshData.metallicTexFilename)
+		CreateTextureFromName(meshData.metallicTexFilename, m_srvContainer[3]);
+	if (meshData.roughnessTexFilename)
+		CreateTextureFromName(meshData.roughnessTexFilename, m_srvContainer[4]);
 
-	materialContainer = new CBV_CONTAINER[1];
-	materialContainer[0] = m_cbvManager->AllocMaterialCBV();
+	materialContainer = new CBV_CONTAINER;
+	*materialContainer = m_cbvManager->AllocMaterialCBV();
 
 
 	SafeDeleteArray(&meshData.vertices);
 	SafeDeleteArray(&meshData.indices);
 	SafeDeleteArray(&meshData.albedoTexFilename);
+	SafeDeleteArray(&meshData.aoTexFilename);
+	SafeDeleteArray(&meshData.normalTexFilename);
+	SafeDeleteArray(&meshData.metallicTexFilename);
+	SafeDeleteArray(&meshData.roughnessTexFilename);
 
 }
 void Model::CreateModelFromFile(MeshDataInfo& meshesInfo)
@@ -268,9 +277,10 @@ void Model::DrawGeneralMesh(const Matrix* pMatrix) //일단 materialNum은 1이라고 
 
 	//MATERIAL_CONSTANT
 	{
-		MATERIAL_CONSTANT* pMaterialConstant = (MATERIAL_CONSTANT*)materialContainer[0].pSystemMemAddr;
-		pMaterialConstant->useNormalMap = false; //일단 임시로 다 false
-		m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, materialContainer[0].CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		MATERIAL_CONSTANT* pMaterialConstant = (MATERIAL_CONSTANT*)(*materialContainer).pSystemMemAddr;
+		if (m_srvContainer[NORMALMAP_SLOT].pSrvResource != nullptr) pMaterialConstant->useNormalMap = true;
+		else pMaterialConstant->useNormalMap = false;
+		m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, (*materialContainer).CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		m_commandList->SetGraphicsRootDescriptorTable(2, gpuDescriptorTable);
 		cpuDescriptorTable.Offset(1, descriptorSize);
 		gpuDescriptorTable.Offset(1, descriptorSize);
@@ -279,9 +289,9 @@ void Model::DrawGeneralMesh(const Matrix* pMatrix) //일단 materialNum은 1이라고 
 	//TEXTURES
 	for (int j = 0; j < MAX_TEXTURE_NUM; j++)
 	{
-		if (m_srvContainer != nullptr) //일단 albedo기준 하나로 모든걸 해결
+		if (m_srvContainer[j].pSrvResource != nullptr) 
 		{
-			m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, m_srvContainer[0].srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, m_srvContainer[j].srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		}
 		cpuDescriptorTable.Offset(1, descriptorSize);
 	}
@@ -334,9 +344,9 @@ void Model::DrawCubeMap(const Matrix* pMatrix)
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	//TEXTURES
-	if (m_srvContainer != nullptr)
+	if (m_srvContainer_CubeMap != nullptr)
 	{
-		m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, m_srvContainer[0].srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, m_srvContainer_CubeMap->srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		cpuDescriptorTable.Offset(1, descriptorSize);
 	}
 	else
@@ -536,15 +546,31 @@ Model::~Model()
 		}
 		SafeDeleteArray(&m_TriGroupList[i].srvContainer);
 	}
+	SafeDeleteArray(&m_TriGroupList);
+
+
+	if (m_srvContainer_CubeMap)
+	{
+		if (m_srvContainer_CubeMap->pSrvResource)
+		{
+			m_srvContainer_CubeMap->pSrvResource->Release();
+			m_srvContainer_CubeMap->pSrvResource = nullptr;
+		}
+		SafeDeleteArray(&m_srvContainer_CubeMap);
+	}
 
 	if (m_srvContainer)
 	{
-		if (m_srvContainer[0].pSrvResource)
+		for (int i = 0; i < MAX_TEXTURE_NUM; i++)
 		{
-			m_srvContainer[0].pSrvResource->Release();
-			m_srvContainer[0].pSrvResource = nullptr;
+			ID3D12Resource* pSrvResource = m_srvContainer[i].pSrvResource;
+			if (pSrvResource)
+			{
+				pSrvResource->Release();
+				pSrvResource = nullptr;
+			}
 		}
 		SafeDeleteArray(&m_srvContainer);
 	}
-	SafeDeleteArray(&m_TriGroupList);
+
 }

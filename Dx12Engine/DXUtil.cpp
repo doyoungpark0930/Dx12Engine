@@ -185,3 +185,12 @@ Matrix GetObjectWorldMatrix(const ObjectState& state)
 		)) *
 		Matrix::CreateTranslation(state.pos);
 }
+
+char* MakeFilePath(const wchar_t* basePath, const char* subFolder, const char* fileName)
+{
+	char* fullPath = new char[512];
+	WideCharToMultiByte(CP_UTF8, 0, basePath, -1, fullPath, 512, NULL, NULL);
+	strcat_s(fullPath, 512, subFolder);
+	strcat_s(fullPath, 512, fileName);
+	return fullPath;
+}

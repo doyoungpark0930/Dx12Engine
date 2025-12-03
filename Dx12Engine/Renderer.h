@@ -53,7 +53,6 @@ private:
 	void CreateObjects();
 	void Create_Vertex_Index();
 	void CreateModels();
-	void inputTexFilename(char* basePath, const char* fileName, char** TexFileToInput);
 	void OnInitGlobalConstant();
 
 	UINT clientWidth;
