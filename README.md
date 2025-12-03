@@ -49,6 +49,8 @@ mixamo, cgtrader, sketchfab, Unity asset store등 다양한 사이트에서 모�
 
 MultiMaterial 시스템 적용
 
+cubemapping
+
 
 ## cpu 메모리 관리
 
