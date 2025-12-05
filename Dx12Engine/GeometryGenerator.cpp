@@ -63,7 +63,7 @@ void GeometryGenerator::Normalize(const Vector3 center,
 	result.m_defaultTransform = modelLoader.defaultTransform;
 }
 
-JustMeshData GeometryGenerator::MakeSquare(const float scale) {
+JustMeshData GeometryGenerator::MakeSquare(const float scale, const float texScale) {
 	JustMeshData result;
 	Vertex* vertices = new Vertex[4];
 	UINT* indices = new UINT[6];
@@ -78,10 +78,10 @@ JustMeshData GeometryGenerator::MakeSquare(const float scale) {
 	vertices[2].Normal = Vector3(0.0f, 0.0f, -1.0f);
 	vertices[3].Normal = Vector3(0.0f, 0.0f, -1.0f);
 
-	vertices[0].Tex = Vector2(0.0f, 0.0f);
-	vertices[1].Tex = Vector2(1.0f, 0.0f);
-	vertices[2].Tex = Vector2(1.0f, 1.0f);
-	vertices[3].Tex = Vector2(0.0f, 1.0f);
+	vertices[0].Tex = Vector2(0.0f, 0.0f) * texScale;
+	vertices[1].Tex = Vector2(1.0f, 0.0f) * texScale;
+	vertices[2].Tex = Vector2(1.0f, 1.0f) * texScale;
+	vertices[3].Tex = Vector2(0.0f, 1.0f) * texScale;
 
 	vertices[0].tangent = Vector3(1.0f, 0.0f, 0.0f);
 	vertices[1].tangent = Vector3(1.0f, 0.0f, 0.0f);

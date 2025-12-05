@@ -8,7 +8,7 @@ public:
 	static void Normalize(const Vector3 center,
 		const float longestLength, MeshDataInfo& result, ModelLoader& modelLoader);
 
-	static JustMeshData MakeSquare(const float scale);
+	static JustMeshData MakeSquare(const float scale, const float texScale);
 	static JustMeshData MakeBox(const float scale);
 
 };

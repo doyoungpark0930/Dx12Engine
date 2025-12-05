@@ -19,6 +19,8 @@ bool m_keyPressed[256] =
     false,
 };
 
+
+
 int WinApp::Run(HINSTANCE hInstance, int nCmdShow, const wchar_t CLASS_NAME[], UINT width, UINT height)
 {
     m_renderer = new Renderer(width, height);
@@ -67,6 +69,9 @@ int WinApp::Run(HINSTANCE hInstance, int nCmdShow, const wchar_t CLASS_NAME[], U
     g_LastFrameTick = GetTickCount64(); //g_LastFrameTick 초기화
     while (true)
     {
+        //메시지 입력이 무한한 것 같지만, 메시지 입력이 프레임 속도를 막지 않도록 설계됨
+        //MouseMove가 계속 실행되는 것 같지만, MouseMove 메시지 -> 한 프레임 -> MouseMove메시지 -> 한 프레임 ..
+        //하지만 MouseMove에 비해, keyboard는 메시지 입력 속도가 느려서 메시지 -> 3프레임 ->메시지 이런 경우도 있음
         if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
         {
             if (msg.message == WM_QUIT)
@@ -83,7 +88,7 @@ int WinApp::Run(HINSTANCE hInstance, int nCmdShow, const wchar_t CLASS_NAME[], U
 
             m_renderer->Update(deltaTime);
             m_renderer->Render();
-
+            
             if (CurTick - g_PrvFrameCheckTick > 1000) //1000밀리초 = 1초
             {
                 g_PrvFrameCheckTick = CurTick;
@@ -106,7 +111,7 @@ int WinApp::Run(HINSTANCE hInstance, int nCmdShow, const wchar_t CLASS_NAME[], U
 
     return 0;
 }
-
+int cnt = 0;
 LRESULT CALLBACK WinApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
@@ -131,6 +136,9 @@ LRESULT CALLBACK WinApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
         //std::cout << "WM_KEYDOWN " << (int)wParam << std::endl;
         // 키보드가 눌린 상태인지 아닌지 저장
         m_keyPressed[wParam] = true;
+        if (wParam == 'F') { // f키 일인칭 시점
+            camera.IsFirstPersonView = !camera.IsFirstPersonView;
+        }
         break;
     }
 
@@ -157,7 +165,6 @@ void WinApp::OnMouseMove(int mouseX, int mouseY) {
     m_cursorNdcY = -mouseY * 2.0f / m_renderer->GetHeight() + 1.0f;
 
     // 커서가 화면 밖으로 나갔을 경우 범위 조절
-    // 게임에서는 클램프를 안할 수도 있습니다.
     m_cursorNdcX = clamp(m_cursorNdcX, -1.0f, 1.0f);
     m_cursorNdcY = clamp(m_cursorNdcY, -1.0f, 1.0f);
 

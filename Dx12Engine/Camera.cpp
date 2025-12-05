@@ -19,7 +19,7 @@ Matrix Camera::GetViewRow() {
 void Camera::UpdateMouse(float mouseNdcX, float mouseNdcY) {
 
 	// 얼마나 회전할지 계산
-	m_yaw = mouseNdcX * 2 * pi;     // 좌우 360도
+	m_yaw = mouseNdcX * pi * 2;     // 좌우 180도
 	m_pitch = mouseNdcY * pi / 2; // 위 아래 90도
 	UpdateViewDir();
 
@@ -27,45 +27,52 @@ void Camera::UpdateMouse(float mouseNdcX, float mouseNdcY) {
 
 void Camera::UpdateViewDir() {
 	// 이동할 때 기준이 되는 정면/오른쪽 방향 계산
-
-	Quaternion q = Quaternion::CreateFromYawPitchRoll(m_yaw, 0.0, 0.0f);
+	Quaternion q = Quaternion::CreateFromAxisAngle(Vector3(0, 1, 0), m_yaw);
 	q.Normalize();
-	m_viewDir =
-		Vector3::Transform(Vector3(0, 0, 1), Matrix::CreateFromQuaternion(q));
+	m_frontDir = Vector3::Transform(Vector3(0, 0, 1), Matrix::CreateFromQuaternion(q));
 
-	m_rightDir = m_upDir.Cross(m_viewDir);
+	Quaternion qPitch = Quaternion::CreateFromAxisAngle(Vector3(1, 0, 0), -m_pitch);
+	Quaternion qYaw = Quaternion::CreateFromAxisAngle(Vector3(0, 1, 0), m_yaw);
+	Quaternion q2 = qPitch * qYaw;
+	q2.Normalize();
+	m_viewDir =
+		Vector3::Transform(Vector3(0, 0, 1), Matrix::CreateFromQuaternion(q2));
+
+	m_rightDir = m_upDir.Cross(m_frontDir);
 }
 
 Matrix Camera::GetProjRow() {
 	return XMMatrixPerspectiveFovLH(m_projFovAngleY, m_aspect, m_nearZ, m_farZ);
 }
 
-void Camera::UpdateKeyboard(const float dt, bool const keyPressed[256]) {
+void Camera::UpdateKeyboard(const float dt, bool const (&keyPressed)[256]) {
 
-	if (keyPressed['W'])
-		MoveForward(dt);
-	if (keyPressed['S'])
-		MoveForward(-dt);
-	if (keyPressed['D'])
-		MoveRight(dt);
-	if (keyPressed['A'])
-		MoveRight(-dt);
-	if (keyPressed['E'])
-		MoveUp(dt);
-	if (keyPressed['Q'])
-		MoveUp(-dt);
-
+	if (!IsFirstPersonView)
+	{
+		if (keyPressed['W'])
+			MoveForward(dt);
+		if (keyPressed['S'])
+			MoveForward(-dt);
+		if (keyPressed['D'])
+			MoveRight(dt);
+		if (keyPressed['A'])
+			MoveRight(-dt);
+		if (keyPressed['E'])
+			MoveUp(dt);
+		if (keyPressed['Q'])
+			MoveUp(-dt);
+	}
 }
 
 void Camera::MoveForward(float dt) {
-	m_eyePos += m_viewDir * m_speed * dt;
+	m_eyePos += m_frontDir * m_speed * dt;
 }
 
 void Camera::MoveUp(float dt) {
 	m_eyePos += m_upDir * m_speed * dt;
 }
 
-void Camera::MoveRight(float dt) 
+void Camera::MoveRight(float dt)
 {
 	m_eyePos += m_rightDir * m_speed * dt;
 }
@@ -73,4 +80,25 @@ void Camera::MoveRight(float dt)
 void Camera::SetAspect(float aspect)
 {
 	m_aspect = aspect;
+}
+
+void Camera::SetCharacterPos(Vector3 Pos)
+{
+	m_characterPosition = Pos;
+}
+
+void Camera::SetEyePos()
+{
+	if (camera.IsFirstPersonView)
+		m_eyePos = m_characterPosition - m_viewDir * 3.5 + Vector3(0.0f, 0.25f, 0.0f);
+}
+
+Vector3 Camera::GetFrontDir()
+{
+	return m_frontDir;
+}
+
+Vector3 Camera::GetRightDir()
+{
+	return m_rightDir;
 }

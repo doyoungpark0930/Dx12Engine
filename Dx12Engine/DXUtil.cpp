@@ -143,18 +143,70 @@ SIZE_T Align(SIZE_T uLocation, SIZE_T uAlign)
 	return ((uLocation + (uAlign - 1)) & ~(uAlign - 1));
 }
 
-int GetAnimationIndexFromKey()
+AnimType GetMovementAnim(bool IsFirstPersonView)
 {
-	for (int key = 49; key <= 57; key++) // '1'~'9'
+	bool w = m_keyPressed['W'];
+	bool a = m_keyPressed['A'];
+	bool s = m_keyPressed['S'];
+	bool d = m_keyPressed['D'];
+	bool space = m_keyPressed[32]; // space
+
+	if (IsFirstPersonView)
 	{
-		if (m_keyPressed[key])
-		{
-			return key - 48;   // '1'(49) → 1, '2'(50) → 2 ...
-		}
+		// 뛰기
+		if (w && space)
+			return AnimType::RunForward;
+
+		if (w)
+			return AnimType::WalkForward;
+
+		if (a && space)
+			return AnimType::RunLeft;
+
+		if (a)
+			return AnimType::WalkLeft;
+
+		if (d && space)
+			return AnimType::RunRight;
+
+		if (d)
+			return AnimType::WalkRight;
+
+		if (s)
+			return AnimType::WalkBackward;
+
 	}
 
-	return 0; // 아무 키도 안 눌렸으면 기본 애니메이션 0
+	return AnimType::Idle;
 }
+
+AnimType GetSkillAnim()
+{
+	if (m_keyPressed['1']) return AnimType::Martelo;
+	if (m_keyPressed['2']) return AnimType::Boxing;
+	if (m_keyPressed['3']) return AnimType::JabCross;
+	if (m_keyPressed['4']) return AnimType::ForwardFlip;
+
+	// 스킬 키 안 눌림
+	return AnimType::Idle;
+}
+
+AnimType GetAnimationType(bool IsFirstPersonView)
+{
+	if (IsFirstPersonView)
+	{
+		// 1) 스킬 먼저 체크
+		AnimType skill = GetSkillAnim();
+		if (skill != AnimType::Idle)
+			return skill;
+
+		// 2) 이동 WASD
+		return GetMovementAnim(IsFirstPersonView);
+	}
+	
+	return AnimType::Idle;
+}
+
 
 void ReverseIndices(UINT* indices, UINT indicesNum)
 {
@@ -193,4 +245,20 @@ char* MakeFilePath(const wchar_t* basePath, const char* subFolder, const char* f
 	strcat_s(fullPath, 512, subFolder);
 	strcat_s(fullPath, 512, fileName);
 	return fullPath;
+}
+
+
+void InitActionKey(char (&actionKey)[32])
+{
+	const char keys[] = {
+		'W', 'S', 'A', 'D',
+		'1','2','3','4','5','6','7','8','9'
+	};
+
+	memset(actionKey, 0, sizeof(actionKey));
+
+	for (int i = 0; i < _countof(keys); i++)
+	{
+		actionKey[i] = keys[i];
+	}
 }

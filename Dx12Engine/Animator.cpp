@@ -6,12 +6,16 @@
 #include "Animator.h"
 
 
-void Animator::OnInit(Animation* Animation, int animationNum, Matrix defaultTransform)
+void Animator::OnInit(Animation* Animation, int interrutibleStateNum, Matrix defaultTransform)
 {
 	m_CurrentTime = 0.0;
-	m_IdleAnimation = Animation;
-	m_CurrentAnimation = Animation;
-	m_PendingAnimation = Animation;
+
+	//Animation => ani 0 / ani 1 / ani 2 / ani 3.. 중에 interruptibleStateNum이 3이라면 ani 2까지 해당
+	m_InterruptibleState = Animation; 
+	m_InterrutibleStateNum = interrutibleStateNum;
+
+	m_CurrentAnimation = &Animation[0];
+	m_PendingAnimation = &Animation[0];
 	m_defaultTransform = defaultTransform;
 	m_FinalBoneMatrices = new Matrix[ModelMatrixNum];
 }
@@ -20,25 +24,34 @@ void Animator::RequestAnimation(Animation* Animation)
 {
 	m_PendingAnimation = Animation;
 }
+bool Animator::IsInterruptibleState()
+{
+	for (int i = 0; i < m_InterrutibleStateNum; i++)
+	{
+		if (m_CurrentAnimation == &m_InterruptibleState[i]) return true;
+	}
+
+	return false;
+}
 void Animator::UpdateAnimation(float dt)
 {
 	if (!m_CurrentAnimation) return;
 
 	m_DeltaTime = dt;
 	m_NewTime = m_CurrentTime + m_CurrentAnimation->GetTicksPerSecond() * dt;
-
+	m_IsAnimationActive = false;
 	if (!m_IsBlended)
 	{
-		//현재 idle 상태이고, pending이 다른동작이라면, idle끊고 바로 동작
-		if (m_CurrentAnimation == m_IdleAnimation && m_PendingAnimation != m_IdleAnimation)
+		//현재 InterruptibleState 상태이고, pending이 다른동작이라면, idle끊고 바로 동작
+		if (IsInterruptibleState() && m_CurrentAnimation != m_PendingAnimation)
 		{
 			m_BlendingAnimation = m_PendingAnimation;
 			m_IsBlended = true;
 			m_EndedCurrentTime = m_CurrentTime;
 			m_BlendTime = 0.0f;
-
+			m_BlendTimeLimit = IsInterruptibleState() ? 0.1f : 0.2f;
 		}
-		else //current와 idle이 다르거나, current와 pending둘다 idle일 경우에는 끝나고 다음 애니메이션 적용
+		else //현재 InterruptibleState가 아니거나, current와 pending이 같은 경우에는 끝나고 다음 애니메이션 적용
 		{
 			if (m_NewTime >= m_CurrentAnimation->GetDuration() - 600) //-600은 walking, running을 위한 임시보정
 			{
@@ -53,12 +66,14 @@ void Animator::UpdateAnimation(float dt)
 					m_IsBlended = true;
 					m_EndedCurrentTime = m_CurrentTime;
 					m_BlendTime = 0.0f;
+					m_BlendTimeLimit = IsInterruptibleState() ? 0.1f : 0.2f;
 				}
 
 			}
 			else
 			{
 				m_CurrentTime = m_NewTime;
+				m_IsAnimationActive = IsInterruptibleState() ? false : true;
 			}
 		}
 
@@ -68,7 +83,8 @@ void Animator::UpdateAnimation(float dt)
 	{
 		m_BlendTime += dt;
 		BlendCalculateBoneTransform(m_CurrentAnimation->GetRootNode(), m_CurrentAnimation, m_BlendingAnimation, Matrix());
-		if (m_BlendTime > 0.2f)
+		m_IsAnimationActive = IsInterruptibleState() ? false : true;
+		if (m_BlendTime > m_BlendTimeLimit)
 		{
 			m_IsBlended = false;
 			m_CurrentAnimation = m_BlendingAnimation;
@@ -102,7 +118,7 @@ void Animator::BlendCalculateBoneTransform(const meshNode* node, Animation* Curr
 		Quaternion blendingRtm = BlendingBones[boneIndex].GetRotation(0);
 		Vector3 blendingStm = BlendingBones[boneIndex].GetScaling(0);
 
-		float scaleFactor = m_BlendTime / 0.2f;
+		float scaleFactor = m_BlendTime / m_BlendTimeLimit;
 
 		curPtm = Vector3::Lerp(
 			curPtm,
@@ -169,6 +185,11 @@ void Animator::CalculateBoneTransform(const meshNode* node, Matrix parentTransfo
 		CalculateBoneTransform(node->mChildren[0], globalTransformation);
 	}
 
+}
+
+bool Animator::IsActiveAnimation() //interruptibleAnimation을 제외한 애니메이션이 동작중인가를 반환
+{
+	return m_IsAnimationActive;
 }
 Animator::~Animator()
 {

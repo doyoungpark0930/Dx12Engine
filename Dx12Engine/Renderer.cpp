@@ -24,6 +24,7 @@
 using namespace DirectX;
 using namespace DirectX::SimpleMath;
 
+
 Renderer::Renderer(UINT width, UINT height)
 {
 	clientWidth = width;
@@ -46,6 +47,9 @@ Renderer::Renderer(UINT width, UINT height)
 	wchar_t assetsPath[512];
 	GetResourcesPath(assetsPath, _countof(assetsPath));
 	wcscpy_s(DXUtil::m_assetsResourcesPath, assetsPath);
+
+	InitActionKey(actionKey);
+
 
 }
 
@@ -348,7 +352,7 @@ void Renderer::CreateRootSignature()
 
 		ID3DBlob* signature = nullptr;
 		ID3DBlob* error = nullptr;
-		
+
 		if (FAILED(D3DX12SerializeVersionedRootSignature(&rootSignatureDesc, featureData.HighestVersion, &signature, &error))) __debugbreak();
 		if (FAILED(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature_CubeMap)))) __debugbreak();
 
@@ -615,9 +619,10 @@ void Renderer::CreateModels()
 
 	const char* fileName = "PeteT.dy";
 	const char* animationFileNames[] =
-	{ "BoxingIdle.ani","Boxing.ani","JabCross.ani",
-		"HeadHit.ani","Martelo2.ani","KidneyHit.ani",
-		"RecevingUppercut.ani","Walking.ani","Running.ani",
+	{ "BoxingIdle.ani","Walking.ani","Running.ani",
+		"WalkingBackward.ani","LeftWalking.ani","RightWalking.ani",
+		"LeftRunning.ani","RightRunning.ani",
+		"Martelo2.ani","Boxing.ani","JabCross.ani",
 		"Running Forward Flip.ani"
 	};
 
@@ -626,7 +631,7 @@ void Renderer::CreateModels()
 	//Animation
 	MeshDataInfo meshesInfo = GeometryGenerator::ReadMeshFromFile(basePath, fileName, animationFileNames, _countof(animationFileNames));
 	m_animations = meshesInfo.m_animations;
-	m_animator->OnInit(&m_animations[0], 1, meshesInfo.m_defaultTransform);
+	m_animator->OnInit(m_animations, 8, meshesInfo.m_defaultTransform);
 	meshesInfo.finalBoneMatrices = m_animator->GetFinalBoneMatrices();
 	m_Models[0].CreateModelFromFile(meshesInfo);
 
@@ -634,7 +639,7 @@ void Renderer::CreateModels()
 	//CubeMap
 	char* cubeMapPath = MakeFilePath(DXUtil::m_assetsResourcesPath, "Cubemap\\HDRI\\Mountain\\",
 		"mountainEnvHDR.dds");
-	JustMeshData cubeMapping = GeometryGenerator::MakeBox(20.0f);
+	JustMeshData cubeMapping = GeometryGenerator::MakeBox(50.0f);
 	ReverseIndices(cubeMapping.indices, cubeMapping.indicesNum);
 	cubeMapping.albedoTexFilename = cubeMapPath;
 	m_Models[1].CreateCubeMap(cubeMapping);
@@ -649,7 +654,7 @@ void Renderer::CreateModels()
 	char* groundRoughnessPath = MakeFilePath(DXUtil::m_assetsResourcesPath, "PBR\\TCom_Ground_Soil18_2.5x2.5_2K\\",
 		"TCom_Ground_Soil18_2.5x2.5_2K_roughness.tif");
 
-	JustMeshData ground = GeometryGenerator::MakeSquare(1.0f);
+	JustMeshData ground = GeometryGenerator::MakeSquare(3.0f, 30.0f);
 	ground.albedoTexFilename = groundAlbedoPath;
 	ground.aoTexFilename = groundAoPath;
 	ground.normalTexFilename = groundNormalPath;
@@ -670,10 +675,56 @@ void Renderer::OnInitGlobalConstant()
 
 }
 
+void MoveCharacter(const float dt, bool const (&keyPressed)[256], ObjectState& objectState) { //나중에 animationController cpp와 header로 옮기기
+
+	if (keyPressed['W'] && keyPressed[32]) //32는 스페이스바
+	{
+		objectState.pos += camera.GetFrontDir() * 0.04f;
+	}
+	else if (keyPressed['W'])
+	{
+		objectState.pos += camera.GetFrontDir() * 0.015f;
+	}
+	else if (keyPressed['A'] && keyPressed[32])
+	{
+		objectState.pos -= camera.GetRightDir() * 0.03f;
+	}
+	else if (keyPressed['A'])
+	{
+		objectState.pos -= camera.GetRightDir() * 0.01f;
+	}
+	else if (keyPressed['D'] && keyPressed[32])
+	{
+		objectState.pos += camera.GetRightDir() * 0.03f;
+	}
+	else if (keyPressed['D'])
+	{
+		objectState.pos += camera.GetRightDir() * 0.01f;
+	}
+	else if (keyPressed['S'])
+	{
+		objectState.pos -= camera.GetFrontDir() * 0.01f;
+	}
+}
+
 // Update frame-based values.
 void Renderer::Update(float dt)
-{ 
-	camera.UpdateKeyboard(dt, m_keyPressed);
+{
+
+	IsActionKeyDown = false;
+	for (int i = 0; i < _countof(actionKey); i++)
+	{
+		char key = actionKey[i];
+		if (key == 0) break; // actionKey 끝
+
+		if (m_keyPressed[key])
+		{
+			IsActionKeyDown = true;
+			break;
+		}
+	}
+
+	camera.SetEyePos();
 
 	//globalConstant Update
 	GLOBAL_CONSTANT* globalConstant = (GLOBAL_CONSTANT*)(m_cbvManager->GetStartCBV() + 0);
@@ -682,20 +733,42 @@ void Renderer::Update(float dt)
 	globalConstant->eyePos = Vector4(camera.m_eyePos.x, camera.m_eyePos.y, camera.m_eyePos.z, 1.0f);
 	globalConstant->lightPos = Vector4(lightPos.x, lightPos.y, lightPos.z, 1.0f);
 
-	int animIndex = GetAnimationIndexFromKey();
-	m_animator->RequestAnimation(&m_animations[animIndex]);
+
+	AnimType animType = GetAnimationType(camera.IsFirstPersonView);
+	m_animator->RequestAnimation(&m_animations[(int)animType]);
+
+	//int animIndex = GetAnimationIndexFromKey(camera.IsFirstPersonView);
+	//m_animator->RequestAnimation(&m_animations[animIndex]);
 
 	m_animator->UpdateAnimation(dt);
+
+	if (camera.IsFirstPersonView)
+	{
+		if (!m_animator[0].IsActiveAnimation())//일반 애니메이션 동작중일 때는 캐릭터 이동 및 방향 전환 x
+		{
+			MoveCharacter(dt, m_keyPressed, m_ObjectState[0]);
+			if (IsActionKeyDown) //ActionKey를 누르고 있을 때만 캐릭터 방향 전환
+			{
+				//캐릭터의 방향이 카메라의 방향과 일치하도록
+				float yaw = atan2(camera.GetFrontDir().x, camera.GetFrontDir().z);
+				m_ObjectState[0].rotation.y = yaw + pi;
+			}
+		}
+	}
+	else
+	{
+		camera.UpdateKeyboard(dt, m_keyPressed);
+	}
 
 	m_ObjectState[0].scale.x = 2.0f;
 	m_ObjectState[0].scale.y = 2.0f;
 	m_ObjectState[0].scale.z = 2.0f;
-	m_ObjectState[0].pos.x = -2.0f;
+	camera.SetCharacterPos(m_ObjectState[0].pos);
 
 	m_ObjectState[1].scale.x = 2.0f;
 	m_ObjectState[1].scale.y = 2.0f;
 	m_ObjectState[1].scale.z = 2.0f;
-	m_ObjectState[1].pos.x = 0.0f;
+	m_ObjectState[1].pos.x = -2.0f;
 
 	m_ObjectState[2].scale.x = 2.0f;
 	m_ObjectState[2].scale.y = 2.0f;

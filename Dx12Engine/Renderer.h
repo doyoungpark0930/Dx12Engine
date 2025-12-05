@@ -104,6 +104,8 @@ private:
 
 	Vector3 lightPos = Vector3(0.0f, 0.5f, -2.0f);
 
+	bool IsActionKeyDown = false;
+	char actionKey[32];
 
 	void LoadAssets();
 	void PopulateCommandList();
