@@ -62,3 +62,5 @@ const T& clamp(const T& v, const T& lo, const T& hi)
 }
 
 void InitActionKey(char (&actionKey)[32]);
+
+bool IsNumberKeyPressed(const bool(&keyPressed)[256]);

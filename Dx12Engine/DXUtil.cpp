@@ -145,11 +145,11 @@ SIZE_T Align(SIZE_T uLocation, SIZE_T uAlign)
 
 AnimType GetMovementAnim(bool IsFirstPersonView)
 {
-	bool w = m_keyPressed['W'];
-	bool a = m_keyPressed['A'];
-	bool s = m_keyPressed['S'];
-	bool d = m_keyPressed['D'];
-	bool space = m_keyPressed[32]; // space
+	bool w = keyPressed['W'];
+	bool a = keyPressed['A'];
+	bool s = keyPressed['S'];
+	bool d = keyPressed['D'];
+	bool space = keyPressed[32]; // space
 
 	if (IsFirstPersonView)
 	{
@@ -159,6 +159,9 @@ AnimType GetMovementAnim(bool IsFirstPersonView)
 
 		if (w)
 			return AnimType::WalkForward;
+
+		if (s && a || s && d)
+			return AnimType::WalkBackward;
 
 		if (a && space)
 			return AnimType::RunLeft;
@@ -182,10 +185,10 @@ AnimType GetMovementAnim(bool IsFirstPersonView)
 
 AnimType GetSkillAnim()
 {
-	if (m_keyPressed['1']) return AnimType::Martelo;
-	if (m_keyPressed['2']) return AnimType::Boxing;
-	if (m_keyPressed['3']) return AnimType::JabCross;
-	if (m_keyPressed['4']) return AnimType::ForwardFlip;
+	if (keyPressed['1']) return AnimType::Martelo;
+	if (keyPressed['2']) return AnimType::Boxing;
+	if (keyPressed['3']) return AnimType::JabCross;
+	if (keyPressed['4']) return AnimType::ForwardFlip;
 
 	// 스킬 키 안 눌림
 	return AnimType::Idle;
@@ -261,4 +264,14 @@ void InitActionKey(char (&actionKey)[32])
 	{
 		actionKey[i] = keys[i];
 	}
+}
+
+bool IsNumberKeyPressed(const bool (&keyPressed)[256])
+{
+	for (int key = '1'; key <= '9'; key++)
+	{
+		if (keyPressed[key])
+			return true;
+	}
+	return false;
 }

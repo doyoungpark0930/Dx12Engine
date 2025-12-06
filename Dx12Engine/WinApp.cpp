@@ -14,7 +14,7 @@ float m_cursorNdcX = 0;
 float m_cursorNdcY = 0;
 float deltaTime = 0.0f;
 
-bool m_keyPressed[256] =
+bool keyPressed[256] =
 {
     false,
 };
@@ -99,6 +99,7 @@ int WinApp::Run(HINSTANCE hInstance, int nCmdShow, const wchar_t CLASS_NAME[], U
 
                 g_FrameCount = 0;
             }
+            camera.IsMouseMoving = false;
         }
     };
 
@@ -135,7 +136,7 @@ LRESULT CALLBACK WinApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
     {
         //std::cout << "WM_KEYDOWN " << (int)wParam << std::endl;
         // 키보드가 눌린 상태인지 아닌지 저장
-        m_keyPressed[wParam] = true;
+        keyPressed[wParam] = true;
         if (wParam == 'F') { // f키 일인칭 시점
             camera.IsFirstPersonView = !camera.IsFirstPersonView;
         }
@@ -144,11 +145,12 @@ LRESULT CALLBACK WinApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
 
     case WM_KEYUP:
         // 키보드가 눌린 상태인지 아닌지 저장
-        m_keyPressed[wParam] = false;
+        keyPressed[wParam] = false;
         break;
 
     case WM_MOUSEMOVE:
         OnMouseMove(LOWORD(lParam), HIWORD(lParam));
+        camera.IsMouseMoving = true;
         break;
     return 0;
 

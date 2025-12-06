@@ -17,16 +17,21 @@ public:
 	void SetEyePos();
 	Vector3 GetFrontDir();
 	Vector3 GetRightDir();
+	Vector3 GetForwardLeftDir();
+	Vector3 GetForwardRightDir();
 
 	Vector3 m_eyePos = Vector3(0.0f, 0.0f, -5.0f);
 
 	bool IsFirstPersonView = false;
+	bool IsMouseMoving = false;
 
 private:
 	Vector3 m_viewDir = Vector3(0.0f, 0.0f, 1.0f);
 	Vector3 m_upDir = Vector3(0.0f, 1.0f, 0.0f);
 	Vector3 m_rightDir = Vector3(1.0f, 0.0f, 0.0f);
 	Vector3 m_frontDir = Vector3(0.0f, 0.0f, 1.0f);
+	Vector3 m_forwardLeftDir = Vector3(1.0f, 0.0f, 0.0f);
+	Vector3 m_forwardRightDir = Vector3(1.0f, 0.0f, 0.0f);
 
 	Vector3 m_characterPosition = Vector3(0.0f, 0.0f, 0.0f);
 

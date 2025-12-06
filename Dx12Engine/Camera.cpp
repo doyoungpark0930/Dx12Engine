@@ -102,3 +102,17 @@ Vector3 Camera::GetRightDir()
 {
 	return m_rightDir;
 }
+
+Vector3 Camera::GetForwardLeftDir()
+{
+	m_forwardLeftDir = m_frontDir - m_rightDir;
+	m_forwardLeftDir.Normalize();
+	return m_forwardLeftDir;
+}
+
+Vector3 Camera::GetForwardRightDir()
+{
+	m_forwardRightDir = m_frontDir + m_rightDir;
+	m_forwardRightDir.Normalize();
+	return m_forwardRightDir;
+}

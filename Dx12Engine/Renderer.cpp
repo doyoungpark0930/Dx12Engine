@@ -5,6 +5,7 @@
 #include "Camera.h"
 #include "WinApp.h"
 #include "CommonStructs.h"
+#include "ControlHelper.h"
 
 #include "DXUtil.h"
 #include "DXHelper.h"
@@ -675,49 +676,16 @@ void Renderer::OnInitGlobalConstant()
 
 }
 
-void MoveCharacter(const float dt, bool const (&keyPressed)[256], ObjectState& objectState) { //나중에 animationController cpp와 header로 옮기기
-
-	if (keyPressed['W'] && keyPressed[32]) //32는 스페이스바
-	{
-		objectState.pos += camera.GetFrontDir() * 0.04f;
-	}
-	else if (keyPressed['W'])
-	{
-		objectState.pos += camera.GetFrontDir() * 0.015f;
-	}
-	else if (keyPressed['A'] && keyPressed[32])
-	{
-		objectState.pos -= camera.GetRightDir() * 0.03f;
-	}
-	else if (keyPressed['A'])
-	{
-		objectState.pos -= camera.GetRightDir() * 0.01f;
-	}
-	else if (keyPressed['D'] && keyPressed[32])
-	{
-		objectState.pos += camera.GetRightDir() * 0.03f;
-	}
-	else if (keyPressed['D'])
-	{
-		objectState.pos += camera.GetRightDir() * 0.01f;
-	}
-	else if (keyPressed['S'])
-	{
-		objectState.pos -= camera.GetFrontDir() * 0.01f;
-	}
-}
-
 // Update frame-based values.
 void Renderer::Update(float dt)
 {
-
 	IsActionKeyDown = false;
 	for (int i = 0; i < _countof(actionKey); i++)
 	{
 		char key = actionKey[i];
 		if (key == 0) break; // actionKey 끝
 
-		if (m_keyPressed[key])
+		if (keyPressed[key])
 		{
 			IsActionKeyDown = true;
 			break;
@@ -737,27 +705,46 @@ void Renderer::Update(float dt)
 	AnimType animType = GetAnimationType(camera.IsFirstPersonView);
 	m_animator->RequestAnimation(&m_animations[(int)animType]);
 
-	//int animIndex = GetAnimationIndexFromKey(camera.IsFirstPersonView);
-	//m_animator->RequestAnimation(&m_animations[animIndex]);
-
 	m_animator->UpdateAnimation(dt);
 
 	if (camera.IsFirstPersonView)
 	{
 		if (!m_animator[0].IsActiveAnimation())//일반 애니메이션 동작중일 때는 캐릭터 이동 및 방향 전환 x
 		{
-			MoveCharacter(dt, m_keyPressed, m_ObjectState[0]);
+			MoveCharacter(dt, keyPressed, m_ObjectState[0]);
 			if (IsActionKeyDown) //ActionKey를 누르고 있을 때만 캐릭터 방향 전환
 			{
 				//캐릭터의 방향이 카메라의 방향과 일치하도록
-				float yaw = atan2(camera.GetFrontDir().x, camera.GetFrontDir().z);
-				m_ObjectState[0].rotation.y = yaw + pi;
+
+				Vector3 moveDir = Vector3(0, 0, 0);
+
+				if (keyPressed['W'] && keyPressed['A'])
+					moveDir = camera.GetForwardLeftDir();   // 대각선 왼앞
+				else if (keyPressed['W'] && keyPressed['D'])
+					moveDir = camera.GetForwardRightDir();  // 대각선 오른앞
+				else if (keyPressed['S'] && keyPressed['A'])
+					moveDir = camera.GetForwardRightDir();  // 대각선 오른앞
+				else if (keyPressed['S'] && keyPressed['D'])
+					moveDir = camera.GetForwardLeftDir();  // 대각선 오른앞
+				else
+					moveDir = camera.GetFrontDir();
+
+				float currentYaw = m_ObjectState[0].rotation.y;
+				float targetYaw = atan2(moveDir.x, moveDir.z) + pi; //pi는 첫 캐릭터의 방향 자체를 돌리는것
+				
+				float deltaYaw = WrapAngle(targetYaw - currentYaw);
+				float rotateSpeed = fabs(deltaYaw) > 0.3 ? 15.0f : 45.0f;
+				float newYaw = currentYaw + deltaYaw * rotateSpeed * dt;
+
+				//MouseMoving중엔 한번에 카메라방향에 캐릭터 방향 맞추기
+				//interruptibleAnimation이 아닌 애니메이션 동작을 누르고 있을 땐, 바로 방향 전환
+				m_ObjectState[0].rotation.y = (camera.IsMouseMoving || IsNumberKeyPressed(keyPressed)) ? targetYaw : newYaw;
 			}
 		}
 	}
 	else
 	{
-		camera.UpdateKeyboard(dt, m_keyPressed);
+		camera.UpdateKeyboard(dt, keyPressed);
 	}
 
 	m_ObjectState[0].scale.x = 2.0f;

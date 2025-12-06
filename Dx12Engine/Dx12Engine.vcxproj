@@ -166,6 +166,7 @@
     <ClInclude Include="Bone.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="CbvManager.h" />
+    <ClInclude Include="ControlHelper.h" />
     <ClInclude Include="DDSTextureLoader12.h" />
     <ClInclude Include="DescriptorPool.h" />
     <ClInclude Include="DirectXMesh.h" />

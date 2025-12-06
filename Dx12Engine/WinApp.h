@@ -2,7 +2,7 @@
 
 class Renderer;
 
-extern bool m_keyPressed[256];
+extern bool keyPressed[256];
 
 
 class WinApp
