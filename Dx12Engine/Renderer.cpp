@@ -676,6 +676,7 @@ void Renderer::OnInitGlobalConstant()
 
 }
 
+
 // Update frame-based values.
 void Renderer::Update(float dt)
 {
@@ -718,7 +719,11 @@ void Renderer::Update(float dt)
 
 				Vector3 moveDir = Vector3(0, 0, 0);
 
-				if (keyPressed['W'] && keyPressed['A'])
+				if (keyPressed['W'] && keyPressed['A'] && keyPressed[16] && !camera.IsMouseMoving)
+					moveDir = GetRotatedDir(camera.GetFrontDir(), -20.0f);
+				else if (keyPressed['W'] && keyPressed['D'] && keyPressed[16] && !camera.IsMouseMoving)
+					moveDir = GetRotatedDir(camera.GetFrontDir(), 20.0f);
+				else if (keyPressed['W'] && keyPressed['A'])
 					moveDir = camera.GetForwardLeftDir();   // 대각선 왼앞
 				else if (keyPressed['W'] && keyPressed['D'])
 					moveDir = camera.GetForwardRightDir();  // 대각선 오른앞
@@ -739,6 +744,7 @@ void Renderer::Update(float dt)
 				//MouseMoving중엔 한번에 카메라방향에 캐릭터 방향 맞추기
 				//interruptibleAnimation이 아닌 애니메이션 동작을 누르고 있을 땐, 바로 방향 전환
 				m_ObjectState[0].rotation.y = (camera.IsMouseMoving || IsNumberKeyPressed(keyPressed)) ? targetYaw : newYaw;
+
 			}
 		}
 	}

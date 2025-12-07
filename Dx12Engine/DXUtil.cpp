@@ -149,7 +149,7 @@ AnimType GetMovementAnim(bool IsFirstPersonView)
 	bool a = keyPressed['A'];
 	bool s = keyPressed['S'];
 	bool d = keyPressed['D'];
-	bool space = keyPressed[32]; // space
+	bool space = keyPressed[16]; // shift
 
 	if (IsFirstPersonView)
 	{

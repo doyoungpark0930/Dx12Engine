@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "DXUtil.h"
 #include "Camera.h"
 
 using namespace DirectX;
@@ -16,13 +17,17 @@ Matrix Camera::GetViewRow() {
 		Matrix::CreateFromQuaternion(q);
 }
 
-void Camera::UpdateMouse(float mouseNdcX, float mouseNdcY) {
 
-	// 얼마나 회전할지 계산
-	m_yaw = mouseNdcX * pi * 2;     // 좌우 180도
-	m_pitch = mouseNdcY * pi / 2; // 위 아래 90도
+void Camera::UpdateMouseDelta(float dx, float dy)
+{
+	m_yaw += dx;
+	m_pitch += dy;
+
+	// pitch 제한 (뒤집힘 방지)
+	float limit = XM_PIDIV2 - 0.01f;
+	m_pitch = clamp(m_pitch, -limit, limit);
+
 	UpdateViewDir();
-
 }
 
 void Camera::UpdateViewDir() {
@@ -115,4 +120,9 @@ Vector3 Camera::GetForwardRightDir()
 	m_forwardRightDir = m_frontDir + m_rightDir;
 	m_forwardRightDir.Normalize();
 	return m_forwardRightDir;
+}
+
+void Camera::SetYaw(float turnRad)
+{
+	m_yaw += XMConvertToRadians(turnRad);
 }

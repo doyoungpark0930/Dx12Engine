@@ -14,10 +14,15 @@ float m_cursorNdcX = 0;
 float m_cursorNdcY = 0;
 float deltaTime = 0.0f;
 
+bool IsCursorMode = false;
+bool m_warping = false;
+bool m_cursorHidden = false;
+
 bool keyPressed[256] =
 {
     false,
 };
+
 
 
 
@@ -112,7 +117,33 @@ int WinApp::Run(HINSTANCE hInstance, int nCmdShow, const wchar_t CLASS_NAME[], U
 
     return 0;
 }
-int cnt = 0;
+
+POINT GetWindowCenter(HWND hwnd)
+{
+    RECT rc;
+    GetClientRect(hwnd, &rc);
+
+    POINT center;
+    center.x = (rc.right - rc.left) / 2;
+    center.y = (rc.bottom - rc.top) / 2;
+
+    ClientToScreen(hwnd, &center); // 스크린 좌표로 변환
+    return center;
+}
+
+void UpdateCursorState()
+{
+    if (!IsCursorMode && !m_cursorHidden)
+    {
+        while (ShowCursor(FALSE) >= 0); // 확실히 숨김
+        m_cursorHidden = true;
+    }
+    else if (IsCursorMode && m_cursorHidden)
+    {
+        while (ShowCursor(TRUE) < 0); // 확실히 보이게
+        m_cursorHidden = false;
+    }
+}
 LRESULT CALLBACK WinApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
@@ -137,8 +168,12 @@ LRESULT CALLBACK WinApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
         //std::cout << "WM_KEYDOWN " << (int)wParam << std::endl;
         // 키보드가 눌린 상태인지 아닌지 저장
         keyPressed[wParam] = true;
-        if (wParam == 'F') { // f키 일인칭 시점
+        if (wParam == 'F') { // F키 일인칭 시점
             camera.IsFirstPersonView = !camera.IsFirstPersonView;
+        }
+        if (wParam == 27) //ESC
+        {
+            IsCursorMode = !IsCursorMode;
         }
         break;
     }
@@ -149,9 +184,22 @@ LRESULT CALLBACK WinApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
         break;
 
     case WM_MOUSEMOVE:
-        OnMouseMove(LOWORD(lParam), HIWORD(lParam));
+        if (m_warping) {
+            m_warping = false;
+            break; // 워프 때문에 발생한 이벤트는 무시
+        }
+        UpdateCursorState();
+        if (!IsCursorMode)
+        {
+            POINT center = GetWindowCenter(hwnd);
+            SetCursorPos(center.x, center.y);
+            OnMouseMove(LOWORD(lParam), HIWORD(lParam));
+            m_warping = true;
+        }
+
         camera.IsMouseMoving = true;
         break;
+
     return 0;
 
     }
@@ -160,19 +208,10 @@ LRESULT CALLBACK WinApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
 
 void WinApp::OnMouseMove(int mouseX, int mouseY) {
 
-    // 마우스 커서의 위치를 NDC로 변환
-    // 마우스 커서는 좌측 상단 (0, 0), 우측 하단(width-1, height-1)
-    // NDC는 좌측 하단이 (-1, -1), 우측 상단(1, 1)
-    m_cursorNdcX = mouseX * 2.0f / m_renderer->GetWidth() - 1.0f;
-    m_cursorNdcY = -mouseY * 2.0f / m_renderer->GetHeight() + 1.0f;
+    int dx = mouseX - 640;
+    int dy = mouseY - 360;
+  
+    float sensitivity = 0.002f;
 
-    // 커서가 화면 밖으로 나갔을 경우 범위 조절
-    m_cursorNdcX = clamp(m_cursorNdcX, -1.0f, 1.0f);
-    m_cursorNdcY = clamp(m_cursorNdcY, -1.0f, 1.0f);
-
-    //std::cout << "x : " << mouseX << " " << m_cursorNdcX << std::endl;
-    //std::cout << "y : " << mouseY << " " << m_cursorNdcY << std::endl;
-
-    // 카메라 시점 회전
-    camera.UpdateMouse(m_cursorNdcX, m_cursorNdcY);
+    camera.UpdateMouseDelta(dx * sensitivity, -dy * sensitivity);
 }

@@ -3,7 +3,7 @@
 class Camera
 {
 public:
-	void UpdateMouse(float mouseNdcX, float mouseNdcY);
+	void UpdateMouseDelta(float dx, float dy);
 	void UpdateViewDir();
 	Matrix GetViewRow();
 	void SetAspect(float aspect);
@@ -19,12 +19,13 @@ public:
 	Vector3 GetRightDir();
 	Vector3 GetForwardLeftDir();
 	Vector3 GetForwardRightDir();
+	void SetYaw(float turnRad);
 
 	Vector3 m_eyePos = Vector3(0.0f, 0.0f, -5.0f);
 
 	bool IsFirstPersonView = false;
 	bool IsMouseMoving = false;
-
+	
 private:
 	Vector3 m_viewDir = Vector3(0.0f, 0.0f, 1.0f);
 	Vector3 m_upDir = Vector3(0.0f, 1.0f, 0.0f);
