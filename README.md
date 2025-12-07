@@ -79,6 +79,7 @@ Pool 기반으로 미리 할당 후 Sub-Allocation 방식으로 연속 관리
    => DX12 멀티스레딩 학습 및 적용 예정
 3) 텍스춰 pool 시스템 구축
 
+포트폴리오 영상 : https://www.youtube.com/watch?v=Pzj5By9eyDg
 
 ![Adobe Express - 녹화_2025_12_03_13_35_16_100](https://github.com/user-attachments/assets/c161558a-1ddb-4e34-bf58-3124c4f58fed)
 ![Adobe Express - 녹화_2025_11_21_11_49_20_790](https://github.com/user-attachments/assets/65b9ebd9-b043-4561-928f-4f7f14b23501)
