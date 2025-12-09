@@ -357,7 +357,8 @@ void ModelLoader::Load(char* basePath, const char* filename)
 
 
 
-	//printNode(rootNode, 0);
+	printNode(rootNode, 0);
+	printf("\n");
 
 	//PrintAllMaterialTextures(m_materials, m_materialNum);
 	if (prevMaterialNum) delete[] prevMaterialNum;

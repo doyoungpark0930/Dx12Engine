@@ -538,7 +538,7 @@ void Renderer::CreateObjects()
 	Model::m_srvManager = m_srvManager;
 	Model::m_cbvManager = m_cbvManager;
 
-	m_Models = new Model[3];
+	m_Models = new Model[4];
 
 }
 
@@ -573,7 +573,7 @@ void Renderer::Create_Vertex_Index()
 
 
 	//Create IndexPool
-	UINT64 indexMemory = 1024 * 1024;
+	UINT64 indexMemory = 1024 * 1024 * 2;
 	CD3DX12_RESOURCE_DESC indexResDesc = CD3DX12_RESOURCE_DESC::Buffer(indexMemory);
 	if (FAILED(m_device->CreateCommittedResource(
 		&defaultHeapProps,
@@ -636,6 +636,23 @@ void Renderer::CreateModels()
 	meshesInfo.finalBoneMatrices = m_animator->GetFinalBoneMatrices();
 	m_Models[0].CreateModelFromFile(meshesInfo);
 
+	{
+		char basePath2[512];
+		WideCharToMultiByte(CP_UTF8, 0, DXUtil::m_assetsResourcesPath, -1, basePath2, sizeof(basePath2), NULL, NULL); // wchar → MultiByte 변환 (UTF-8 기준)
+		strcat_s(basePath2, sizeof(basePath2), "Sci_fi_girl\\");
+
+		const char* fileName2 = "sci_fi_girl.dy";
+		const char* animationFileNames2[] =
+		{ "sci_fi_girlAni.ani" };
+
+		//Animation
+		m_testAnimator = new Animator;
+		MeshDataInfo meshesInfo2 = GeometryGenerator::ReadMeshFromFile(basePath2, fileName2, animationFileNames2, _countof(animationFileNames2));
+		m_testAnimations = meshesInfo2.m_animations;
+		m_testAnimator->OnInit(m_testAnimations, 1, meshesInfo2.m_defaultTransform);
+		meshesInfo2.finalBoneMatrices = m_testAnimator->GetFinalBoneMatrices();
+		m_Models[3].CreateModelFromFile(meshesInfo2);
+	}
 
 	//CubeMap
 	char* cubeMapPath = MakeFilePath(DXUtil::m_assetsResourcesPath, "Cubemap\\HDRI\\Mountain\\",
@@ -680,6 +697,8 @@ void Renderer::OnInitGlobalConstant()
 // Update frame-based values.
 void Renderer::Update(float dt)
 {
+
+	m_testAnimator->UpdateAnimation(dt);
 	IsActionKeyDown = false;
 	for (int i = 0; i < _countof(actionKey); i++)
 	{
@@ -716,9 +735,7 @@ void Renderer::Update(float dt)
 			if (IsActionKeyDown) //ActionKey를 누르고 있을 때만 캐릭터 방향 전환
 			{
 				//캐릭터의 방향이 카메라의 방향과 일치하도록
-
 				Vector3 moveDir = Vector3(0, 0, 0);
-
 				if (keyPressed['W'] && keyPressed['A'] && keyPressed[16] && !camera.IsMouseMoving)
 					moveDir = GetRotatedDir(camera.GetFrontDir(), -20.0f);
 				else if (keyPressed['W'] && keyPressed['D'] && keyPressed[16] && !camera.IsMouseMoving)
@@ -736,7 +753,7 @@ void Renderer::Update(float dt)
 
 				float currentYaw = m_ObjectState[0].rotation.y;
 				float targetYaw = atan2(moveDir.x, moveDir.z) + pi; //pi는 첫 캐릭터의 방향 자체를 돌리는것
-				
+
 				float deltaYaw = WrapAngle(targetYaw - currentYaw);
 				float rotateSpeed = fabs(deltaYaw) > 0.3 ? 15.0f : 45.0f;
 				float newYaw = currentYaw + deltaYaw * rotateSpeed * dt;
@@ -780,6 +797,14 @@ void Renderer::Update(float dt)
 	m_ObjectState[4].rotation.x = pi / 2.0f;
 	m_ObjectState[4].pos.y = -1.0f;
 
+	//Sci_fi_girl
+	m_ObjectState[5].scale.x = 2.0f;
+	m_ObjectState[5].scale.y = 2.0f;
+	m_ObjectState[5].scale.z = 2.0f;
+	m_ObjectState[5].pos.z = 2.0f;
+
+
+
 }
 void Renderer::ObjectRender()
 {
@@ -792,7 +817,11 @@ void Renderer::ObjectRender()
 	//cubeMap
 	Matrix object3_Matrix = GetObjectWorldMatrix(m_ObjectState[3]);
 
+	//ground
 	Matrix object4_Matrix = GetObjectWorldMatrix(m_ObjectState[4]);
+
+	//Sci_fi_girl
+	Matrix object5_Matrix = GetObjectWorldMatrix(m_ObjectState[5]);
 
 	m_commandList->SetPipelineState(m_animationPSO);
 	m_commandList->SetGraphicsRootSignature(m_rootSignature_General);
@@ -801,6 +830,8 @@ void Renderer::ObjectRender()
 	m_Models[0].DrawAnimation(&object0_Matrix);
 	m_Models[0].DrawAnimation(&object1_Matrix);
 	m_Models[0].DrawAnimation(&object2_Matrix);
+	//m_Models[3].DrawAnimation(&object5_Matrix);
+
 
 	//cubemap
 	m_commandList->SetPipelineState(m_cubeMapPSO);
@@ -1020,6 +1051,10 @@ Renderer::~Renderer()
 	{
 		delete m_animator;
 		m_animator = nullptr;
+	}
+	if (m_testAnimator) {
+		delete m_testAnimator;
+		m_testAnimator = nullptr;
 	}
 	SafeDeleteArray(&m_ObjectState);
 

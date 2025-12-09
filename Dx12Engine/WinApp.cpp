@@ -26,6 +26,7 @@ bool keyPressed[256] =
 
 
 
+
 int WinApp::Run(HINSTANCE hInstance, int nCmdShow, const wchar_t CLASS_NAME[], UINT width, UINT height)
 {
     m_renderer = new Renderer(width, height);
@@ -186,6 +187,7 @@ LRESULT CALLBACK WinApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
     case WM_MOUSEMOVE:
         if (m_warping) {
             m_warping = false;
+            camera.IsMouseMoving = true;
             break; // 워프 때문에 발생한 이벤트는 무시
         }
         UpdateCursorState();
@@ -211,6 +213,7 @@ void WinApp::OnMouseMove(int mouseX, int mouseY) {
     int dx = mouseX - 640;
     int dy = mouseY - 360;
   
+
     float sensitivity = 0.002f;
 
     camera.UpdateMouseDelta(dx * sensitivity, -dy * sensitivity);

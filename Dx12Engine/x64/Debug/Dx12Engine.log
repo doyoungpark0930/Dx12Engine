@@ -1,11 +1,23 @@
-﻿  WinApp.cpp
+﻿  Renderer.cpp
 C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Camera.h(44,29): warning C4305: 'initializing': truncation from 'double' to 'float'
-  (compiling source file '/WinApp.cpp')
+  (compiling source file '/Renderer.cpp')
   
-C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\WinApp.cpp(42,43): warning C4838: conversion from 'UINT' to 'LONG' requires a narrowing conversion
-  (compiling source file '/WinApp.cpp')
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\ControlHelper.h(97,32): warning C4305: '-=': truncation from 'double' to 'float'
+  (compiling source file '/Renderer.cpp')
   
-C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\WinApp.cpp(42,68): warning C4838: conversion from 'UINT' to 'LONG' requires a narrowing conversion
-  (compiling source file '/WinApp.cpp')
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\ControlHelper.h(98,33): warning C4305: '+=': truncation from 'double' to 'float'
+  (compiling source file '/Renderer.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Animation.h(16,47): warning C4244: 'return': conversion from 'int' to 'float', possible loss of data
+  (compiling source file '/Renderer.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(173,77): warning C4390: ';': empty controlled statement found; is this the intent?
+  (compiling source file '/Renderer.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(755,21): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+  (compiling source file '/Renderer.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(797,35): warning C4305: '=': truncation from 'double' to 'float'
+  (compiling source file '/Renderer.cpp')
   
   Dx12Engine.vcxproj -> C:\Users\Lenovo\source\repos\Dx12Engine\x64\Debug\Dx12Engine.exe

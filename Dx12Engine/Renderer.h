@@ -101,6 +101,8 @@ private:
 
 	Animator* m_animator = nullptr;
 	Animation* m_animations = nullptr;
+	Animator* m_testAnimator = nullptr;
+	Animation* m_testAnimations = nullptr;
 
 	Vector3 lightPos = Vector3(0.0f, 0.5f, -2.0f);
 
