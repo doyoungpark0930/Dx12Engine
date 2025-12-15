@@ -25,25 +25,46 @@
 using namespace DirectX;
 using namespace DirectX::SimpleMath;
 
+void Renderer::SetMainViewport() {
+
+	m_viewport.TopLeftX = 0.0f;
+	m_viewport.TopLeftY = 0.0f;
+	m_viewport.MinDepth = 0.0f; //이거 안하면 depth값 판정 안됨
+	m_viewport.MaxDepth = 1.0f;
+
+	m_scissorRect.left = 0;
+	m_scissorRect.top = 0;
+
+	m_viewport.Width = static_cast<float>(clientWidth);
+	m_viewport.Height = static_cast<float>(clientHeight);
+
+	m_scissorRect.right = clientWidth;
+	m_scissorRect.bottom = clientHeight;
+}
+
+void Renderer::SetShadowViewport() {
+
+	m_shadowViewport.TopLeftX = 0.0f;
+	m_shadowViewport.TopLeftY = 0.0f;
+	m_shadowViewport.MinDepth = 0.0f; //이거 안하면 depth값 판정 안됨
+	m_shadowViewport.MaxDepth = 1.0f;
+
+	m_shadowScissorRect.left = 0;
+	m_shadowScissorRect.top = 0;
+
+	m_shadowViewport.Width = m_shadowWidth;
+	m_shadowViewport.Height = m_shadowHeight;
+
+	m_shadowScissorRect.right = m_shadowWidth;
+	m_shadowScissorRect.bottom = m_shadowHeight;
+}
 
 Renderer::Renderer(UINT width, UINT height)
 {
 	clientWidth = width;
 	clientHeight = height;
 
-	m_viewport.TopLeftX = 0.0f;
-	m_viewport.TopLeftY = 0.0f;
-	m_viewport.Width = static_cast<float>(clientWidth);
-	m_viewport.Height = static_cast<float>(clientHeight);
-	m_viewport.MinDepth = 0.0f; //이거 안하면 depth값 판정 안됨
-	m_viewport.MaxDepth = 1.0f;
-
-	m_scissorRect.left = 0;
-	m_scissorRect.top = 0;
-	m_scissorRect.right = clientWidth;
-	m_scissorRect.bottom = clientHeight;
-
-	aspect = m_viewport.Width / m_viewport.Height;
+	aspect = static_cast<float>(clientWidth) / static_cast<float>(clientHeight);
 
 	wchar_t assetsPath[512];
 	GetResourcesPath(assetsPath, _countof(assetsPath));
@@ -160,6 +181,8 @@ void Renderer::OnInit()
 		m_cbvManager = new CbvManager();
 		m_cbvManager->OnInit(m_device, this);
 
+		m_shadowMapSrvContainer = m_srvManager->CreateShadowMapTexture();
+
 	}
 
 	// Create frame resources.
@@ -244,7 +267,7 @@ void Renderer::LoadAssets()
 
 	Create_Vertex_Index();
 
-	OnInitGlobalConstant();
+	GlobalConstantUpdate();
 
 
 
@@ -289,8 +312,8 @@ void Renderer::CreateRootSignature()
 
 	//General and Animation rootsignature
 	{
-		CD3DX12_DESCRIPTOR_RANGE1 ranges[4];
-		CD3DX12_ROOT_PARAMETER1 rootParameters[4];
+		CD3DX12_DESCRIPTOR_RANGE1 ranges[5];
+		CD3DX12_ROOT_PARAMETER1 rootParameters[5];
 
 		// b0: GLOBAL_CONSTANT (1개 고정)
 		ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, 0);
@@ -309,6 +332,11 @@ void Renderer::CreateRootSignature()
 		UINT maxSrvNum = 8;
 		ranges[3].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, maxSrvNum, 0, 0);
 		rootParameters[3].InitAsDescriptorTable(1, &ranges[3], D3D12_SHADER_VISIBILITY_PIXEL);
+
+		//t8 : shadowMap
+		ranges[4].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 8, 0);
+		rootParameters[4].InitAsDescriptorTable(1, &ranges[4], D3D12_SHADER_VISIBILITY_PIXEL);
+
 
 		CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc;
 		rootSignatureDesc.Init_1_1(_countof(rootParameters), rootParameters, 1, &sampler, rootSignatureFlags);
@@ -369,6 +397,7 @@ void Renderer::CreateRootSignature()
 		}
 	}
 
+
 }
 void Renderer::CreatePipelineState()
 {
@@ -387,12 +416,12 @@ void Renderer::CreatePipelineState()
 	// 디버그모드는 현재디렉터리가 vcxproj있는 디렉터리, exe누르면 exe파일 있는곳이 directory.
 	// exe와 f5의 실행이 다르다면, exe있는 디렉터리에 hlsl파일 복사해서 넣기
 	// 혹은 hlsl파일의 property에서 itemtype을 copyFile로 바꾸기
-	if (FAILED(D3DCompileFromFile(L"./AnimationVSShader.hlsl", nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &animationVertexShader, nullptr)))
+	if (FAILED(D3DCompileFromFile(L"./AnimationVSShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "VSMain", "vs_5_0", compileFlags, 0, &animationVertexShader, nullptr)))
 	{
 		printf("Cannot find shaderfile\n");
 		throw std::exception();
 	}
-	if (FAILED(D3DCompileFromFile(L"./PSShader.hlsl", nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, nullptr)))
+	if (FAILED(D3DCompileFromFile(L"./PSShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, nullptr)))
 	{
 		printf("Cannot find shaderfile\n");
 		throw std::exception();
@@ -432,12 +461,12 @@ void Renderer::CreatePipelineState()
 	ID3DBlob* CubeVertexShader = nullptr;
 	ID3DBlob* CubePixelShader = nullptr;
 
-	if (FAILED(D3DCompileFromFile(L"./CubeVSShader.hlsl", nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &CubeVertexShader, nullptr)))
+	if (FAILED(D3DCompileFromFile(L"./CubeVSShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "VSMain", "vs_5_0", compileFlags, 0, &CubeVertexShader, nullptr)))
 	{
 		printf("Cannot find shaderfile\n");
 		throw std::exception();
 	}
-	if (FAILED(D3DCompileFromFile(L"./CubePSShader.hlsl", nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &CubePixelShader, nullptr)))
+	if (FAILED(D3DCompileFromFile(L"./CubePSShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "PSMain", "ps_5_0", compileFlags, 0, &CubePixelShader, nullptr)))
 	{
 		printf("Cannot find shaderfile\n");
 		throw std::exception();
@@ -462,7 +491,7 @@ void Renderer::CreatePipelineState()
 	//GeneralPSO
 	ID3DBlob* vertexShader = nullptr;
 
-	if (FAILED(D3DCompileFromFile(L"./VSShader.hlsl", nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, nullptr)))
+	if (FAILED(D3DCompileFromFile(L"./VSShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, nullptr)))
 	{
 		printf("Cannot find shaderfile\n");
 		throw std::exception();
@@ -474,6 +503,64 @@ void Renderer::CreatePipelineState()
 	psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader);
 
 	if (FAILED(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_GeneralPSO)))) __debugbreak();
+
+	//DepthOnlyGeneralPSO
+	ID3DBlob* depthOnlyVSShader = nullptr;
+	ID3DBlob* depthOnlyPSShader = nullptr;
+
+	if (FAILED(D3DCompileFromFile(L"./DepthOnlyVS.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "VSMain", "vs_5_0", compileFlags, 0, &depthOnlyVSShader, nullptr)))
+	{
+		printf("Cannot find shaderfile\n");
+		throw std::exception();
+	}
+
+	if (FAILED(D3DCompileFromFile(L"./DepthOnlyPS.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "PSMain", "ps_5_0", compileFlags, 0, &depthOnlyPSShader, nullptr)))
+	{
+		printf("Cannot find shaderfile\n");
+		throw std::exception();
+	}
+
+	psoDesc.InputLayout = { inputElementDescs_JustMesh, _countof(inputElementDescs_JustMesh) };
+	psoDesc.pRootSignature = m_rootSignature_General;
+	psoDesc.VS = CD3DX12_SHADER_BYTECODE(depthOnlyVSShader);
+	psoDesc.PS = CD3DX12_SHADER_BYTECODE(depthOnlyPSShader);
+
+	if (FAILED(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_DepthOnlyGeneralPSO)))) __debugbreak();
+
+	//DepthOnlyAnimationPSO
+	ID3DBlob* depthOnlyAnimationVSShader = nullptr;
+
+	if (FAILED(D3DCompileFromFile(L"./DepthOnlyAnimationVS.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "VSMain", "vs_5_0", compileFlags, 0, &depthOnlyAnimationVSShader, nullptr)))
+	{
+		printf("Cannot find shaderfile\n");
+		throw std::exception();
+	}
+
+
+	psoDesc.InputLayout = { inputElementDescs_Animation, _countof(inputElementDescs_Animation) };
+	psoDesc.pRootSignature = m_rootSignature_General;
+	psoDesc.VS = CD3DX12_SHADER_BYTECODE(depthOnlyAnimationVSShader);
+	psoDesc.PS = CD3DX12_SHADER_BYTECODE(depthOnlyPSShader);
+
+	if (FAILED(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_DepthOnlyAnimationPSO)))) __debugbreak();
+
+	if (depthOnlyVSShader)
+	{
+		depthOnlyVSShader->Release();
+		depthOnlyVSShader = nullptr;
+	}
+
+	if (depthOnlyAnimationVSShader)
+	{
+		depthOnlyAnimationVSShader->Release();
+		depthOnlyAnimationVSShader = nullptr;
+	}
+
+	if (depthOnlyPSShader)
+	{
+		depthOnlyPSShader->Release();
+		depthOnlyPSShader = nullptr;
+	}
 
 	if (animationVertexShader)
 	{
@@ -538,7 +625,7 @@ void Renderer::CreateObjects()
 	Model::m_srvManager = m_srvManager;
 	Model::m_cbvManager = m_cbvManager;
 
-	m_Models = new Model[4];
+	m_Models = new Model[5];
 
 }
 
@@ -627,15 +714,16 @@ void Renderer::CreateModels()
 		"Running Forward Flip.ani"
 	};
 
-	m_animator = new Animator;
-
+	m_animator = new Animator[2];
+	m_animations = new Animation * [2];
 	//Animation
 	MeshDataInfo meshesInfo = GeometryGenerator::ReadMeshFromFile(basePath, fileName, animationFileNames, _countof(animationFileNames));
-	m_animations = meshesInfo.m_animations;
-	m_animator->OnInit(m_animations, 8, meshesInfo.m_defaultTransform);
-	meshesInfo.finalBoneMatrices = m_animator->GetFinalBoneMatrices();
+	m_animations[0] = meshesInfo.m_animations;
+	m_animator[0].OnInit(m_animations[0], 8, meshesInfo.m_defaultTransform);
+	meshesInfo.finalBoneMatrices = m_animator[0].GetFinalBoneMatrices();
 	m_Models[0].CreateModelFromFile(meshesInfo);
 
+	/*
 	{
 		char basePath2[512];
 		WideCharToMultiByte(CP_UTF8, 0, DXUtil::m_assetsResourcesPath, -1, basePath2, sizeof(basePath2), NULL, NULL); // wchar → MultiByte 변환 (UTF-8 기준)
@@ -646,13 +734,13 @@ void Renderer::CreateModels()
 		{ "sci_fi_girlAni.ani" };
 
 		//Animation
-		m_testAnimator = new Animator;
 		MeshDataInfo meshesInfo2 = GeometryGenerator::ReadMeshFromFile(basePath2, fileName2, animationFileNames2, _countof(animationFileNames2));
-		m_testAnimations = meshesInfo2.m_animations;
-		m_testAnimator->OnInit(m_testAnimations, 1, meshesInfo2.m_defaultTransform);
-		meshesInfo2.finalBoneMatrices = m_testAnimator->GetFinalBoneMatrices();
+		m_animations[1] = meshesInfo2.m_animations;
+		m_animator[1].OnInit(m_animations[1], 1, meshesInfo2.m_defaultTransform);
+		meshesInfo2.finalBoneMatrices = m_animator[1].GetFinalBoneMatrices();
 		m_Models[3].CreateModelFromFile(meshesInfo2);
 	}
+	*/
 
 	//CubeMap
 	char* cubeMapPath = MakeFilePath(DXUtil::m_assetsResourcesPath, "Cubemap\\HDRI\\Mountain\\",
@@ -679,26 +767,47 @@ void Renderer::CreateModels()
 	ground.roughnessTexFilename = groundRoughnessPath;
 	m_Models[2].CreateGeneralModel(ground);
 
+	JustMeshData square = GeometryGenerator::MakeSquare(2.5f, 1.0f);
+	m_Models[4].CreateGeneralModel(square);
+
 	m_ObjectState = new ObjectState[maxObjectsNum];
+
 }
 
-void Renderer::OnInitGlobalConstant()
+void Renderer::GlobalConstantUpdate()
 {
 	GLOBAL_CONSTANT* globalConstant = (GLOBAL_CONSTANT*)(m_cbvManager->GetStartCBV() + 0);
 	View = camera.GetViewRow();
 	Proj = camera.GetProjRow();
 	globalConstant->ViewProj = (View * Proj).Transpose();
 	globalConstant->eyePos = Vector4(camera.m_eyePos.x, camera.m_eyePos.y, camera.m_eyePos.z, 1.0f);
-	globalConstant->lightPos = Vector4(lightPos.x, lightPos.y, lightPos.z, 1.0f);
-
 }
 
+void Renderer::GlobalConstantLightUpdate()
+{
+	lightDirection.Normalize();
+	Vector3 up = Vector3(0.0f, 1.0f, 0.0f);
+	if (abs(up.Dot(lightDirection) + 1.0f) < 1e-5)
+		up = Vector3(1.0f, 0.0f, 0.0f);
+
+	View = XMMatrixLookAtLH(
+		lightPos, lightPos + lightDirection,
+		up);
+
+	Proj = XMMatrixPerspectiveFovLH(
+		XMConvertToRadians(120.0f), 1.0f, 0.01f, 100.0f);
+
+	GLOBAL_CONSTANT* globalConstant = (GLOBAL_CONSTANT*)(m_cbvManager->GetStartCBV() + 0);
+	globalConstant->light.viewProj= (View * Proj).Transpose();
+	globalConstant->light.position = Vector3(lightPos.x, lightPos.y, lightPos.z);
+	globalConstant->light.direction = lightDirection;
+}
 
 // Update frame-based values.
 void Renderer::Update(float dt)
 {
 
-	m_testAnimator->UpdateAnimation(dt);
+	m_animator[1].UpdateAnimation(dt);
 	IsActionKeyDown = false;
 	for (int i = 0; i < _countof(actionKey); i++)
 	{
@@ -714,18 +823,13 @@ void Renderer::Update(float dt)
 
 	camera.SetEyePos();
 
-	//globalConstant Update
-	GLOBAL_CONSTANT* globalConstant = (GLOBAL_CONSTANT*)(m_cbvManager->GetStartCBV() + 0);
-	View = camera.GetViewRow();
-	globalConstant->ViewProj = (View * Proj).Transpose();
-	globalConstant->eyePos = Vector4(camera.m_eyePos.x, camera.m_eyePos.y, camera.m_eyePos.z, 1.0f);
-	globalConstant->lightPos = Vector4(lightPos.x, lightPos.y, lightPos.z, 1.0f);
-
+	GlobalConstantLightUpdate();
+	GlobalConstantUpdate();
 
 	AnimType animType = GetAnimationType(camera.IsFirstPersonView);
-	m_animator->RequestAnimation(&m_animations[(int)animType]);
+	m_animator[0].RequestAnimation(&m_animations[0][(int)animType]);
 
-	m_animator->UpdateAnimation(dt);
+	m_animator[0].UpdateAnimation(dt);
 
 	if (camera.IsFirstPersonView)
 	{
@@ -770,6 +874,7 @@ void Renderer::Update(float dt)
 		camera.UpdateKeyboard(dt, keyPressed);
 	}
 
+
 	m_ObjectState[0].scale.x = 2.0f;
 	m_ObjectState[0].scale.y = 2.0f;
 	m_ObjectState[0].scale.z = 2.0f;
@@ -803,11 +908,19 @@ void Renderer::Update(float dt)
 	m_ObjectState[5].scale.z = 2.0f;
 	m_ObjectState[5].pos.z = 2.0f;
 
+	//square
+	m_ObjectState[6].scale.x = 0.5f;
+	m_ObjectState[6].scale.y = 0.5f;
+	m_ObjectState[6].scale.z = 0.5f;
+	m_ObjectState[6].pos.z = 2.0f;
+	m_ObjectState[6].pos.y = 1.0f;
+
 
 
 }
 void Renderer::ObjectRender()
 {
+	//main character
 	Matrix object0_Matrix = GetObjectWorldMatrix(m_ObjectState[0]);
 
 	Matrix object1_Matrix = GetObjectWorldMatrix(m_ObjectState[1]);
@@ -823,8 +936,40 @@ void Renderer::ObjectRender()
 	//Sci_fi_girl
 	Matrix object5_Matrix = GetObjectWorldMatrix(m_ObjectState[5]);
 
+	//square
+	Matrix object6_Matrix = GetObjectWorldMatrix(m_ObjectState[6]);
+
+	//ShadowMapping Render
+	SetShadowViewport();
+	m_commandList->RSSetViewports(1, &m_shadowViewport);
+	m_commandList->RSSetScissorRects(1, &m_shadowScissorRect);
+
+	m_commandList->SetPipelineState(m_DepthOnlyAnimationPSO);
+	m_commandList->SetGraphicsRootSignature(m_rootSignature_General);
+
+	m_commandList->OMSetRenderTargets(0, nullptr, FALSE, &m_shadowMapSrvContainer.dsvHandle);
+	m_commandList->ClearDepthStencilView(m_shadowMapSrvContainer.dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+	
+	m_Models[0].DrawAnimation(&object0_Matrix);
+	m_Models[0].DrawAnimation(&object1_Matrix);
+	m_Models[0].DrawAnimation(&object2_Matrix);
+
+	//Main Render
+	SetMainViewport();
+	m_commandList->RSSetViewports(1, &m_viewport);
+	m_commandList->RSSetScissorRects(1, &m_scissorRect);
+
 	m_commandList->SetPipelineState(m_animationPSO);
 	m_commandList->SetGraphicsRootSignature(m_rootSignature_General);
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
+	m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+
+	// Record commands.
+	const float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+	m_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 	//animation object
 	m_Models[0].DrawAnimation(&object0_Matrix);
@@ -842,6 +987,9 @@ void Renderer::ObjectRender()
 	m_commandList->SetPipelineState(m_GeneralPSO);
 	m_commandList->SetGraphicsRootSignature(m_rootSignature_General);
 	m_Models[2].DrawGeneralMesh(&object4_Matrix);
+
+	//square
+	m_Models[4].DrawGeneralMesh(&object6_Matrix);
 }
 
 // Render the scene.
@@ -875,10 +1023,6 @@ void Renderer::PopulateCommandList()
 	// re-recording.
 	if (FAILED(m_commandList->Reset(m_commandAllocator, nullptr))) __debugbreak();
 
-	// Set necessary state.
-	m_commandList->RSSetViewports(1, &m_viewport);
-	m_commandList->RSSetScissorRects(1, &m_scissorRect);
-
 	ID3D12DescriptorHeap* ppHeaps[] = { m_descriptorPool->m_descritorHeap };
 	m_commandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
@@ -886,15 +1030,6 @@ void Renderer::PopulateCommandList()
 
 	// Indicate that the back buffer will be used as a render target.
 	m_commandList->ResourceBarrier(1, &barrier);
-
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
-	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
-	m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
-
-	// Record commands.
-	const float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
-	m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-	m_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 	ObjectRender();
 
@@ -996,6 +1131,18 @@ Renderer::~Renderer()
 		m_cubeMapPSO->Release();
 		m_cubeMapPSO = nullptr;
 	}
+
+	if (m_DepthOnlyAnimationPSO)
+	{
+		m_DepthOnlyAnimationPSO->Release();
+		m_DepthOnlyAnimationPSO = nullptr;
+	}
+
+	if (m_DepthOnlyGeneralPSO)
+	{
+		m_DepthOnlyGeneralPSO->Release();
+		m_DepthOnlyGeneralPSO = nullptr;
+	}
 	for (int i = 0; i < FrameCount; i++)
 	{
 		if (m_renderTargets[i])
@@ -1023,6 +1170,13 @@ Renderer::~Renderer()
 		m_rootSignature_CubeMap = nullptr;
 	}
 
+
+	if (m_shadowMapSrvContainer.pSrvResource)
+	{
+		m_shadowMapSrvContainer.pSrvResource->Release();
+		m_shadowMapSrvContainer.pSrvResource = nullptr;
+	}
+
 	if (m_commandList)
 	{
 		m_commandList->Release();
@@ -1047,15 +1201,19 @@ Renderer::~Renderer()
 		m_indexBufferPool = nullptr;
 	}
 	SafeDeleteArray(&m_Models);
+
 	if (m_animator)
 	{
-		delete m_animator;
+		delete[] m_animator;
 		m_animator = nullptr;
 	}
-	if (m_testAnimator) {
-		delete m_testAnimator;
-		m_testAnimator = nullptr;
+
+	if (m_animations)
+	{
+		delete[] m_animations;
+		m_animations = nullptr;
 	}
+
 	SafeDeleteArray(&m_ObjectState);
 
 	if (m_device)

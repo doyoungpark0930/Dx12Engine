@@ -40,7 +40,8 @@ public:
 	UINT8* m_indexCur = nullptr;      // current position of upload buffer
 	UINT8* m_indexEnd = nullptr;
 
-
+	void SetMainViewport();
+	void SetShadowViewport();
 
 	Renderer(UINT width, UINT height);
 	~Renderer();
@@ -54,15 +55,21 @@ private:
 	void CreateObjects();
 	void Create_Vertex_Index();
 	void CreateModels();
-	void OnInitGlobalConstant();
+	void GlobalConstantUpdate();
+	void GlobalConstantLightUpdate();
 
 	UINT clientWidth;
 	UINT clientHeight;
+
+	int m_shadowWidth = 1280;
+	int m_shadowHeight = 1280;
 
 
 	// Pipeline objects.
 	D3D12_VIEWPORT m_viewport;
 	D3D12_RECT m_scissorRect;
+	D3D12_VIEWPORT m_shadowViewport;
+	D3D12_RECT m_shadowScissorRect;
 	IDXGISwapChain3* m_swapChain = nullptr;
 	ID3D12Device* m_device = nullptr;
 	ID3D12Resource* m_renderTargets[FrameCount] = {};
@@ -76,18 +83,21 @@ private:
 	ID3D12PipelineState* m_animationPSO = nullptr;
 	ID3D12PipelineState* m_cubeMapPSO = nullptr;
 	ID3D12PipelineState* m_GeneralPSO = nullptr;
+	ID3D12PipelineState* m_DepthOnlyGeneralPSO = nullptr;
+	ID3D12PipelineState* m_DepthOnlyAnimationPSO = nullptr;
 	ID3D12GraphicsCommandList* m_commandList = nullptr;
 	DescriptorPool* m_descriptorPool = nullptr;
 	SrvManager* m_srvManager = nullptr;
 	CbvManager* m_cbvManager = nullptr;
 	UINT m_rtvDescriptorSize;
 
-
 	// Synchronization objects.
 	UINT m_frameIndex;
 	HANDLE m_fenceEvent;
 	ID3D12Fence* m_fence;
 	UINT64 m_fenceValue;
+
+	SRV_CONTAINER m_shadowMapSrvContainer;
 
 	Model* m_Models = nullptr;
 	ObjectState* m_ObjectState = nullptr;
@@ -100,11 +110,10 @@ private:
 	FLOAT aspect;
 
 	Animator* m_animator = nullptr;
-	Animation* m_animations = nullptr;
-	Animator* m_testAnimator = nullptr;
-	Animation* m_testAnimations = nullptr;
+	Animation** m_animations = nullptr;
 
-	Vector3 lightPos = Vector3(0.0f, 0.5f, -2.0f);
+	Vector3 lightPos = Vector3(0.0f, 5.0f, 2.0f);
+	Vector3 lightDirection = Vector3(0.0f, -1.0f, 1.0f);
 
 	bool IsActionKeyDown = false;
 	char actionKey[32];

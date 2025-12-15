@@ -262,8 +262,8 @@ void Model::DrawGeneralMesh(const Matrix* pMatrix) //일단 materialNum은 1이라고 
 	CD3DX12_GPU_DESCRIPTOR_HANDLE gpuDescriptorTable = {};
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable = {};
 
-	//model행렬(1) + mtlCbv + textures
-	UINT requiredDescriptorCount = 1 + 1 + MAX_TEXTURE_NUM;
+	//model행렬(1) + animation(1) + mtlCbv + textures
+	UINT requiredDescriptorCount = 1 + 1 + 1 + MAX_TEXTURE_NUM;
 	m_descriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, requiredDescriptorCount);
 
 	m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, cbvContainer->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -274,6 +274,20 @@ void Model::DrawGeneralMesh(const Matrix* pMatrix) //일단 materialNum은 1이라고 
 
 
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	// shadow map SRV 바인딩 (t8)
+	{
+		CD3DX12_CPU_DESCRIPTOR_HANDLE shadowCpu;
+		CD3DX12_GPU_DESCRIPTOR_HANDLE shadowGpu;
+
+		// shadow map용 디스크립터 1개만 할당
+		m_descriptorPool->AllocDescriptorTable(&shadowCpu, &shadowGpu, 1);
+
+		m_device->CopyDescriptorsSimple(1, shadowCpu, m_srvManager->m_srvContainer[0].srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+		// root parameter 4 (t8)
+		m_commandList->SetGraphicsRootDescriptorTable(4, shadowGpu);
+	}
 
 	//MATERIAL_CONSTANT
 	{
@@ -289,7 +303,7 @@ void Model::DrawGeneralMesh(const Matrix* pMatrix) //일단 materialNum은 1이라고 
 	//TEXTURES
 	for (int j = 0; j < MAX_TEXTURE_NUM; j++)
 	{
-		if (m_srvContainer[j].pSrvResource != nullptr) 
+		if (m_srvContainer[j].pSrvResource != nullptr)
 		{
 			m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, m_srvContainer[j].srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		}
@@ -364,7 +378,6 @@ void Model::DrawCubeMap(const Matrix* pMatrix)
 
 void Model::DrawAnimation(const Matrix* pMatrix)
 {
-
 	//GlobalConstant
 	CBV_CONTAINER globalContainer = m_cbvManager->GetGlobalContainer();
 
@@ -388,9 +401,6 @@ void Model::DrawAnimation(const Matrix* pMatrix)
 		pModelConstant->NormalModel = NormalMatrix.Transpose();
 	}
 
-
-
-
 	//AnimationUpdate
 	if (existAnimation)
 	{
@@ -404,7 +414,7 @@ void Model::DrawAnimation(const Matrix* pMatrix)
 	CD3DX12_GPU_DESCRIPTOR_HANDLE gpuDescriptorTable = {};
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable = {};
 
-	//model행렬(1)+ animationMatrices(1) + (mtlCbv+textures)*mtlNum;
+	//model행렬(1)+ animationMatrices(1) + (mtlCbv + textures) * mtlNum;
 	UINT requiredDescriptorCount = 1 + 1 + m_materialNum * (1 + MAX_TEXTURE_NUM);
 	m_descriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, requiredDescriptorCount);
 
@@ -422,6 +432,20 @@ void Model::DrawAnimation(const Matrix* pMatrix)
 
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+
+	// shadow map SRV 바인딩 (t8)
+	{
+		CD3DX12_CPU_DESCRIPTOR_HANDLE shadowCpu;
+		CD3DX12_GPU_DESCRIPTOR_HANDLE shadowGpu;
+
+		// shadow map용 디스크립터 1개만 할당
+		m_descriptorPool->AllocDescriptorTable(&shadowCpu, &shadowGpu, 1);
+
+		m_device->CopyDescriptorsSimple(1, shadowCpu, m_srvManager->m_srvContainer[0].srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+		// root parameter 4 (t8)
+		m_commandList->SetGraphicsRootDescriptorTable(4, shadowGpu);
+	}
 
 	//global / model / mtl1 (mtl_constant), (textures...) / mtl2 (mtl_constant), (textures...) / mtl3 ..
 

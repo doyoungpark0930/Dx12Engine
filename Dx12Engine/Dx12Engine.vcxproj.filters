@@ -190,5 +190,17 @@
     <CopyFileToFolders Include="VSShader.hlsl">
       <Filter>ShaderFiles</Filter>
     </CopyFileToFolders>
+    <CopyFileToFolders Include="DepthOnlyPS.hlsl">
+      <Filter>ShaderFiles</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="DepthOnlyVS.hlsl">
+      <Filter>ShaderFiles</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="DepthOnlyAnimationVS.hlsl">
+      <Filter>ShaderFiles</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Common.hlsl">
+      <Filter>ShaderFiles</Filter>
+    </CopyFileToFolders>
   </ItemGroup>
 </Project>

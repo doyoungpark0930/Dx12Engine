@@ -1,15 +1,5 @@
-cbuffer GLOBAL_CONSTANT : register(b0)
-{
-    matrix ViewProj;
-    float4 eyePos;
-    float4 lightPos;
-};
+#include "Common.hlsl"
 
-cbuffer MODEL_CONSTANT : register(b1)
-{
-    matrix Model;
-    matrix NormalModel;
-};
 
 struct VS_INPUT
 {

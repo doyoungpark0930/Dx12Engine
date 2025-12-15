@@ -8,3 +8,11 @@ C:\Users\Lenovo\source\repos\Dx12Engine\x64\Debug\CubePSShader.hlsl
 C:\Users\Lenovo\source\repos\Dx12Engine\x64\Debug\CubeVSShader.hlsl
 ^C:\USERS\LENOVO\SOURCE\REPOS\DX12ENGINE\DX12ENGINE\VSSHADER.HLSL
 C:\Users\Lenovo\source\repos\Dx12Engine\x64\Debug\VSShader.hlsl
+^C:\USERS\LENOVO\SOURCE\REPOS\DX12ENGINE\DX12ENGINE\DEPTHONLYPS.HLSL
+C:\Users\Lenovo\source\repos\Dx12Engine\x64\Debug\DepthOnlyPS.hlsl
+^C:\USERS\LENOVO\SOURCE\REPOS\DX12ENGINE\DX12ENGINE\DEPTHONLYVS.HLSL
+C:\Users\Lenovo\source\repos\Dx12Engine\x64\Debug\DepthOnlyVS.hlsl
+^C:\USERS\LENOVO\SOURCE\REPOS\DX12ENGINE\DX12ENGINE\DEPTHONLYANIMATIONVS.HLSL
+C:\Users\Lenovo\source\repos\Dx12Engine\x64\Debug\DepthOnlyAnimationVS.hlsl
+^C:\USERS\LENOVO\SOURCE\REPOS\DX12ENGINE\DX12ENGINE\COMMON.HLSL
+C:\Users\Lenovo\source\repos\Dx12Engine\x64\Debug\Common.hlsl

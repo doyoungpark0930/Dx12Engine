@@ -1,17 +1,14 @@
+#include "Common.hlsl"
+SamplerState g_sampler : register(s0);
+
 Texture2D albedoTex : register(t0);
 Texture2D aoTex : register(t1);
 Texture2D normalTex : register(t2);
 Texture2D metallicTex : register(t3);
 Texture2D roughnessTex : register(t4);
 
-SamplerState g_sampler : register(s0);
+Texture2D shadowMaps: register(t8);
 
-cbuffer GLOBAL_CONSTANT : register(b0)
-{
-    matrix ViewProj;
-    float4 eyePos;
-    float4 lightPos;
-};
 
 cbuffer MATERIAL_CONSTANT : register(b3)
 {
@@ -48,11 +45,46 @@ float3 GetNormal(PS_INPUT input)
     return normalWorld;
 }
 
+float ComputeShadow(float3 worldPos)
+{
+    // 1. World ¡æ Light clip space
+    float4 lightClip = mul(float4(worldPos, 1.0), light.viewProj);
+
+    // behind light
+    if (lightClip.w <= 0.0)
+        return 1.0;
+
+    // 2. Perspective divide
+    float3 lightNDC = lightClip.xyz / lightClip.w;
+
+    // 3. NDC ¡æ UV
+    float2 shadowUV;
+    shadowUV.x = lightNDC.x * 0.5 + 0.5;
+    shadowUV.y = -lightNDC.y * 0.5 + 0.5; // D3D y-flip
+
+    // outside shadow map
+    if (shadowUV.x < 0 || shadowUV.x > 1 ||
+        shadowUV.y < 0 || shadowUV.y > 1)
+        return 1.0;
+
+    // 4. Sample depth
+    float shadowDepth = shadowMaps.Sample(g_sampler, shadowUV).r;
+
+    // 5. Bias (normal-based)
+    float bias = 0.001;
+
+    // 6. Compare
+    float currentDepth = lightNDC.z;
+
+    return (currentDepth - bias > shadowDepth) ? 0.0 : 1.0;
+}
+
 float4 PSMain(PS_INPUT input) : SV_TARGET
 {
+    
     float3 normalWorld = GetNormal(input);
     
-    float3 lightDir = normalize(lightPos.xyz - input.worldPos);
+    float3 lightDir = normalize(light.position - input.worldPos);
     float3 viewDir = normalize(eyePos.xyz - input.worldPos);
     float3 reflectDir = reflect(-lightDir, normalWorld);
 
@@ -67,8 +99,14 @@ float4 PSMain(PS_INPUT input) : SV_TARGET
     float spec = pow(max(dot(viewDir, reflectDir), 0.0f), 5.0f); // shininess
     float3 specular = spec * float3(1.0f, 1.0f, 1.0f);
 
-    float3 lighting = ambient + diffuse + specular;
-    float4 color = albedoTex.Sample(g_sampler, input.uv);
+    //float3 lighting = ambient + diffuse + specular;
+    //float4 color = albedoTex.Sample(g_sampler, input.uv);
     
+
+    float shadow = ComputeShadow(input.worldPos);
+
+    float3 lighting = ambient + (diffuse + specular) * shadow;
+    float4 color = albedoTex.Sample(g_sampler, input.uv);
+
     return float4(color.rgb * lighting, color.a);
 }

@@ -34,71 +34,55 @@ void SrvManager::OnInit(ID3D12Device* pDevice, Renderer* pRenderer)
 	m_textures = new ID3D12Resource * [max_descriptorNum]; //텍스춰를 pool이아닌 중구난방으로 할당하고있긴함=> 메모리 단편화 위험
 
 }
-SRV_CONTAINER SrvManager::CreateTiledTexture()
+SRV_CONTAINER SrvManager::CreateShadowMapTexture()
 {
 	UpdateMember();
 
-	// Describe and create a Texture2D.
 	D3D12_RESOURCE_DESC textureDesc = {};
 	textureDesc.MipLevels = 1;
-	textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	textureDesc.Width = TextureWidth;
-	textureDesc.Height = TextureHeight;
-	textureDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+	textureDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+	textureDesc.Width = m_shadowWidth;
+	textureDesc.Height = m_shadowHeight;
+	textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 	textureDesc.DepthOrArraySize = 1;
 	textureDesc.SampleDesc.Count = 1;
 	textureDesc.SampleDesc.Quality = 0;
 	textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+
+	D3D12_CLEAR_VALUE clearValue = {};
+	clearValue.Format = DXGI_FORMAT_D32_FLOAT;
+	clearValue.DepthStencil.Depth = 1.0f;
+	clearValue.DepthStencil.Stencil = 0;
 
 	CD3DX12_HEAP_PROPERTIES defaultHeapProps(D3D12_HEAP_TYPE_DEFAULT);
 	if (FAILED(m_device->CreateCommittedResource(
 		&defaultHeapProps,
 		D3D12_HEAP_FLAG_NONE,
 		&textureDesc,
-		D3D12_RESOURCE_STATE_COPY_DEST,
-		nullptr,
+		D3D12_RESOURCE_STATE_DEPTH_WRITE,
+		&clearValue,
 		IID_PPV_ARGS(&m_textures[allocatedNum]))))__debugbreak();
 
-	const UINT64 uploadBufferSize = GetRequiredIntermediateSize(m_textures[allocatedNum], 0, 1);
+	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+	dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
+	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 
-	CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
-	auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
-	if (FAILED(m_device->CreateCommittedResource(
-		&uploadHeapProps,
-		D3D12_HEAP_FLAG_NONE,
-		&bufferDesc,
-		D3D12_RESOURCE_STATE_GENERIC_READ,
-		nullptr,
-		IID_PPV_ARGS(&m_textureUploadHeap)))) __debugbreak();
+	// Describe and create a depth stencil view (DSV) descriptor heap.
+	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
+	dsvHeapDesc.NumDescriptors = 1;
+	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
+	if (FAILED(m_device->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&m_dsvHeap)))) __debugbreak();
 
-	// Copy data to the intermediate upload heap and then schedule a copy from the upload heap to the Texture2D.
-	UINT8* texture = GenerateTextureData();
+	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
 
-	D3D12_SUBRESOURCE_DATA textureData = {};
-	textureData.pData = texture;
-	textureData.RowPitch = TextureWidth * TexturePixelSize;
-	textureData.SlicePitch = textureData.RowPitch * TextureHeight;
-
-
-	if (FAILED(m_commandAllocator->Reset())) __debugbreak();
-	if (FAILED(m_commandList->Reset(m_commandAllocator, nullptr))) __debugbreak();
-
-	UpdateSubresources(m_commandList, m_textures[allocatedNum], m_textureUploadHeap, 0, 0, 1, &textureData);
-	auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_textures[allocatedNum], D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-	m_commandList->ResourceBarrier(1, &barrier);
-
-	if (FAILED(m_commandList->Close())) __debugbreak();
-
-	ID3D12CommandList* ppCommandLists[] = { m_commandList };
-	m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
-
-	WaitForPreviousFrame();
+	m_device->CreateDepthStencilView(m_textures[allocatedNum], &dsvDesc, dsvHandle);
 
 	// Describe and create a SRV for the texture.
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Format = textureDesc.Format;
+	srvDesc.Format = DXGI_FORMAT_R32_FLOAT;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MipLevels = 1;
 
@@ -108,19 +92,8 @@ SRV_CONTAINER SrvManager::CreateTiledTexture()
 
 	m_srvContainer[allocatedNum].pSrvResource = m_textures[allocatedNum];
 	m_srvContainer[allocatedNum].srvHandle = srvHandle;
+	m_srvContainer[allocatedNum].dsvHandle = dsvHandle;
 
-	if (texture)
-	{
-		delete[] texture;
-		texture = nullptr;
-	}
-
-	if (m_textureUploadHeap)
-	{
-		m_textureUploadHeap->Release();
-		m_textureUploadHeap = nullptr;
-	}
-	
 	return m_srvContainer[allocatedNum++];
 }
 SRV_CONTAINER SrvManager::CreateTexture(const wchar_t* szFileName)
@@ -153,9 +126,9 @@ SRV_CONTAINER SrvManager::CreateTexture(const wchar_t* szFileName)
 			throw std::exception();
 		}
 	}
-	
+
 	UINT64 uploadBufferSize;
-	if(useDDS) uploadBufferSize = GetRequiredIntermediateSize(m_textures[allocatedNum], 0, UINT(ddsSubresources.size()));
+	if (useDDS) uploadBufferSize = GetRequiredIntermediateSize(m_textures[allocatedNum], 0, UINT(ddsSubresources.size()));
 	else uploadBufferSize = GetRequiredIntermediateSize(m_textures[allocatedNum], 0, 1);
 
 	// Create the GPU upload buffer.
@@ -185,14 +158,14 @@ SRV_CONTAINER SrvManager::CreateTexture(const wchar_t* szFileName)
 
 	WaitForPreviousFrame();
 
-	
+
 	D3D12_RESOURCE_DESC ddsDesc = m_textures[allocatedNum]->GetDesc();
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Format = ddsDesc.Format; 
+	srvDesc.Format = ddsDesc.Format;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = ddsDesc.MipLevels; 
-	
+	srvDesc.Texture2D.MipLevels = ddsDesc.MipLevels;
+
 	CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_descritorHeap->GetCPUDescriptorHandleForHeapStart());
 	srvHandle.Offset(allocatedNum, descriptorSize);
 	m_device->CreateShaderResourceView(m_textures[allocatedNum], &srvDesc, srvHandle);
@@ -315,41 +288,6 @@ void SrvManager::WaitForPreviousFrame()
 
 }
 
-UINT8* SrvManager::GenerateTextureData()
-{
-	const UINT rowPitch = TextureWidth * TexturePixelSize;
-	const UINT cellPitch = rowPitch >> 3;        // The width of a cell in the checkboard texture.
-	const UINT cellHeight = TextureWidth >> 3;    // The height of a cell in the checkerboard texture.
-	const UINT textureSize = rowPitch * TextureHeight;
-
-	UINT8* pData = new UINT8[textureSize];
-
-	for (UINT n = 0; n < textureSize; n += TexturePixelSize)
-	{
-		UINT x = n % rowPitch;
-		UINT y = n / rowPitch;
-		UINT i = x / cellPitch;
-		UINT j = y / cellHeight;
-
-		if (i % 2 == j % 2)
-		{
-			pData[n] = 0x00;        // R
-			pData[n + 1] = 0x00;    // G
-			pData[n + 2] = 0x00;    // B
-			pData[n + 3] = 0xff;    // A
-		}
-		else
-		{
-			pData[n] = 0xff;        // R
-			pData[n + 1] = 0xff;    // G
-			pData[n + 2] = 0xff;    // B
-			pData[n + 3] = 0xff;    // A
-		}
-	}
-
-	return pData;
-}
-
 SrvManager::~SrvManager()
 {
 	if (m_textureUploadHeap)
@@ -357,14 +295,14 @@ SrvManager::~SrvManager()
 		m_textureUploadHeap->Release();
 		m_textureUploadHeap = nullptr;
 	}
-	
+
 	if (m_textures)
 	{
 		//m_textures의 Resource는 Model의 소멸자에서 해제
 		delete[] m_textures;
 		m_textures = nullptr;
 	}
-	
+
 	if (m_srvContainer)
 	{
 		delete[] m_srvContainer;
@@ -375,5 +313,11 @@ SrvManager::~SrvManager()
 	{
 		m_descritorHeap->Release();
 		m_descritorHeap = nullptr;
+	}
+
+	if (m_dsvHeap)
+	{
+		m_dsvHeap->Release();
+		m_dsvHeap = nullptr;
 	}
 }

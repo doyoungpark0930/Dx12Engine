@@ -42,11 +42,23 @@ struct NormalVertex
 	Vector3 StartPos;  //vertex시작 지점
 };
 
+struct Light {
+	Vector3 radiance = Vector3(5.0f); // strength
+	float fallOffStart = 0.0f;
+	Vector3 direction = Vector3(0.0f, 0.0f, 1.0f);
+	float fallOffEnd = 20.0f;
+	Vector3 position = Vector3(0.0f, 0.0f, -2.0f);
+	float spotPower = 6.0f;
+
+	Matrix viewProj; // 그림자 렌더링에 필요
+};
+
 struct GLOBAL_CONSTANT
 {
 	Matrix ViewProj;
 	Vector4 eyePos;
-	Vector4 lightPos;
+
+	Light light;
 };
 
 struct MODEL_CONSTANT
@@ -76,6 +88,7 @@ struct SRV_CONTAINER
 {
 	ID3D12Resource* pSrvResource = nullptr;
 	CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle;
 };
 
 struct CBV_CONTAINER

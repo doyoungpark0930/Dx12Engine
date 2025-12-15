@@ -1,15 +1,4 @@
-cbuffer GLOBAL_CONSTANT : register(b0)
-{
-    matrix ViewProj;
-    float4 eyePos;
-    float4 lightPos;
-};
-
-cbuffer MODEL_CONSTANT : register(b1)
-{
-    matrix Model;
-    matrix NormalModel;
-};
+#include "Common.hlsl"
 
 cbuffer SkinnedConstants : register(b2)
 {
