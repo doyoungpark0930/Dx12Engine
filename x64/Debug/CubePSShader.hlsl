@@ -10,9 +10,7 @@ struct PS_INPUT
 
 
 float4 PSMain(PS_INPUT input) : SV_TARGET
-{
-    
+{ 
     float4 color = g_textureCube.Sample(g_sampler, input.worldPos);
-    
     return color;
 }

@@ -1,11 +1,12 @@
-struct Light
+SamplerState wrapSampler : register(s0);
+SamplerState shadowPointSampler : register(s1);
+SamplerComparisonState shadowCompareSampler : register(s2);
+
+struct ShadowFrustum
 {
-    float3 radiance; // Strength
-    float fallOffStart;
-    float3 direction;
-    float fallOffEnd;
-    float3 position;
-    float spotPower;
+    float4 radiance; // Strength
+    float4 direction;
+    float4 position;
 
     matrix viewProj;
 };
@@ -14,8 +15,9 @@ cbuffer GLOBAL_CONSTANT : register(b0)
 {
     matrix ViewProj;
     float4 eyePos;
+    float4 lightPos;
     
-    Light light;
+    ShadowFrustum shadowFrustum;
 };
 
 cbuffer MODEL_CONSTANT : register(b1)

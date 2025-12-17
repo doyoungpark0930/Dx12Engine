@@ -176,6 +176,7 @@ void Model::CreateGeneralModel(JustMeshData& meshData)
 void Model::CreateModelFromFile(MeshDataInfo& meshesInfo)
 {
 	rootNode = meshesInfo.rootNode;
+	localAABB = meshesInfo.boundingBox;
 	m_materialNum = meshesInfo.materialNum;
 	m_meshNum = meshesInfo.meshNum;
 	m_TriGroupList = new TRI_GROUP_PER_MTL[m_materialNum];
@@ -294,6 +295,7 @@ void Model::DrawGeneralMesh(const Matrix* pMatrix) //일단 materialNum은 1이라고 
 		MATERIAL_CONSTANT* pMaterialConstant = (MATERIAL_CONSTANT*)(*materialContainer).pSystemMemAddr;
 		if (m_srvContainer[NORMALMAP_SLOT].pSrvResource != nullptr) pMaterialConstant->useNormalMap = true;
 		else pMaterialConstant->useNormalMap = false;
+		pMaterialConstant->useShadowMap = true;
 		m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, (*materialContainer).CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		m_commandList->SetGraphicsRootDescriptorTable(2, gpuDescriptorTable);
 		cpuDescriptorTable.Offset(1, descriptorSize);
@@ -458,6 +460,7 @@ void Model::DrawAnimation(const Matrix* pMatrix)
 			MATERIAL_CONSTANT* pMaterialConstant = (MATERIAL_CONSTANT*)materialContainer[i].pSystemMemAddr;
 			if (pTriGroup->srvContainer[NORMALMAP_SLOT].pSrvResource != nullptr)  pMaterialConstant->useNormalMap = true;
 			else  pMaterialConstant->useNormalMap = false;
+			pMaterialConstant->useShadowMap = false;
 			m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, materialContainer[i].CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			cpuDescriptorTable.Offset(1, descriptorSize);
 			m_commandList->SetGraphicsRootDescriptorTable(2, gpuDescriptorTable);

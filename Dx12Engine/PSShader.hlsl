@@ -1,5 +1,4 @@
 #include "Common.hlsl"
-SamplerState g_sampler : register(s0);
 
 Texture2D albedoTex : register(t0);
 Texture2D aoTex : register(t1);
@@ -7,12 +6,13 @@ Texture2D normalTex : register(t2);
 Texture2D metallicTex : register(t3);
 Texture2D roughnessTex : register(t4);
 
-Texture2D shadowMaps: register(t8);
+Texture2D shadowMaps : register(t8);
 
 
 cbuffer MATERIAL_CONSTANT : register(b3)
 {
     int useNormalMap;
+    int useShadowMap;
 }
 
 struct PS_INPUT
@@ -30,7 +30,7 @@ float3 GetNormal(PS_INPUT input)
     
     if (useNormalMap)
     {
-        float3 normal = normalTex.Sample(g_sampler, input.uv).rgb;
+        float3 normal = normalTex.Sample(wrapSampler, input.uv).rgb;
         normal = 2.0 * normal - 1.0; // 범위 조절 [-1.0, 1.0]
             
         float3 N = normalWorld;
@@ -47,36 +47,71 @@ float3 GetNormal(PS_INPUT input)
 
 float ComputeShadow(float3 worldPos)
 {
+    
+    float shadowFactor = 1.0;
+    
     // 1. World → Light clip space
-    float4 lightClip = mul(float4(worldPos, 1.0), light.viewProj);
-
-    // behind light
-    if (lightClip.w <= 0.0)
-        return 1.0;
+    float4 lightClip = mul(float4(worldPos, 1.0), shadowFrustum.viewProj);
 
     // 2. Perspective divide
-    float3 lightNDC = lightClip.xyz / lightClip.w;
-
-    // 3. NDC → UV
-    float2 shadowUV;
-    shadowUV.x = lightNDC.x * 0.5 + 0.5;
-    shadowUV.y = -lightNDC.y * 0.5 + 0.5; // D3D y-flip
-
-    // outside shadow map
-    if (shadowUV.x < 0 || shadowUV.x > 1 ||
-        shadowUV.y < 0 || shadowUV.y > 1)
+    lightClip.xyz /= lightClip.w;
+    
+     // Light NDC 범위 체크 (-1 ~ 1)
+    if (lightClip.x < -1.0 || lightClip.x > 1.0 ||
+        lightClip.y < -1.0 || lightClip.y > 1.0 ||
+        lightClip.z < 0.0 || lightClip.z > 1.0)
+    {
+        // light projection 범위 밖 → 일반 렌더링
         return 1.0;
+    }
 
-    // 4. Sample depth
-    float shadowDepth = shadowMaps.Sample(g_sampler, shadowUV).r;
+    lightClip.y *= -1;
+    float2 lightTexcoord = (lightClip.xy + 1.0) / 2.0;
 
-    // 5. Bias (normal-based)
-    float bias = 0.001;
+    
+     // 4. texel size
+    uint width, height, mip;
+    shadowMaps.GetDimensions(0, width, height, mip);
+    float2 texelSize = 1.0 / float2(width, height);
+    
+    // 5. PCF
+    float shadow = 0.0;
+    const float bias = 0.00001;
+    
+    const float2 poissonDisk[16] =
+    {
+        float2(-0.94201624, -0.39906216), float2(0.94558609, -0.76890725),
+            float2(-0.094184101, -0.92938870), float2(0.34495938, 0.29387760),
+            float2(-0.91588581, 0.45771432), float2(-0.81544232, -0.87912464),
+            float2(-0.38277543, 0.27676845), float2(0.97484398, 0.75648379),
+            float2(0.44323325, -0.97511554), float2(0.53742981, -0.47373420),
+            float2(-0.26496911, -0.41893023), float2(0.79197514, 0.19090188),
+            float2(-0.24188840, 0.99706507), float2(-0.81409955, 0.91437590),
+            float2(0.19984126, 0.78641367), float2(0.14383161, -0.14100790)
+    };
 
-    // 6. Compare
-    float currentDepth = lightNDC.z;
+    [unroll]
+    for (int i = 0; i < 16; i++)
+    {
+        if (lightTexcoord.x < 0.05 || lightTexcoord.x > 0.95 || lightTexcoord.y < 0.05 || lightTexcoord.y > 0.95)
+        {
+            shadow += 1.0; //shadow frustum에 경계선 부분은 pcf하지 않는다
+        }
+        else
+        {
+            shadow += shadowMaps.SampleCmpLevelZero(shadowCompareSampler, lightTexcoord + poissonDisk[i] * texelSize, lightClip.z - bias).r;
+        }
+        //shadow += shadowMaps.SampleCmpLevelZero(shadowCompareSampler, lightTexcoord + poissonDisk[i] * texelSize, lightClip.z - bias).r;
+        //ndc판정 주석하고 이 주석shadow로 하면 어디에 frustum 맺히는지 보임
 
-    return (currentDepth - bias > shadowDepth) ? 0.0 : 1.0;
+    }
+
+    // 평균
+    shadow /= 16.0;
+
+    return shadow;
+    
+    
 }
 
 float4 PSMain(PS_INPUT input) : SV_TARGET
@@ -84,29 +119,24 @@ float4 PSMain(PS_INPUT input) : SV_TARGET
     
     float3 normalWorld = GetNormal(input);
     
-    float3 lightDir = normalize(light.position - input.worldPos);
+    float3 lightDir = normalize(lightPos.xyz - input.worldPos);
     float3 viewDir = normalize(eyePos.xyz - input.worldPos);
     float3 reflectDir = reflect(-lightDir, normalWorld);
 
     // Ambient
-    float3 ambient = float3(0.5f, 0.5f, 0.5f);
+    float3 ambient = float3(0.7f, 0.7f, 0.7f);
       
     // Diffuse
     float diff = max(dot(normalWorld, lightDir), 0.0f);
     float3 diffuse = diff * float3(1.0f, 1.0f, 1.0f);
-     
     // Specular
     float spec = pow(max(dot(viewDir, reflectDir), 0.0f), 5.0f); // shininess
     float3 specular = spec * float3(1.0f, 1.0f, 1.0f);
-
-    //float3 lighting = ambient + diffuse + specular;
-    //float4 color = albedoTex.Sample(g_sampler, input.uv);
     
+    float shadow = useShadowMap ? ComputeShadow(input.worldPos) : 1.0f;
 
-    float shadow = ComputeShadow(input.worldPos);
-
-    float3 lighting = ambient + (diffuse + specular) * shadow;
-    float4 color = albedoTex.Sample(g_sampler, input.uv);
+    float3 lighting = ambient + (diffuse + specular) * shadow * 0.7f;
+    float4 color = albedoTex.Sample(wrapSampler, input.uv);
 
     return float4(color.rgb * lighting, color.a);
 }

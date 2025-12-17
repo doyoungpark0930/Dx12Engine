@@ -294,21 +294,35 @@ void Renderer::CreateRootSignature()
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
-	D3D12_STATIC_SAMPLER_DESC sampler = {};
-	sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
-	sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-	sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-	sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-	sampler.MipLODBias = 0;
-	sampler.MaxAnisotropy = 0;
-	sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-	sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
-	sampler.MinLOD = 0.0f;
-	sampler.MaxLOD = D3D12_FLOAT32_MAX;
-	sampler.ShaderRegister = 0;
-	sampler.RegisterSpace = 0;
-	sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	D3D12_STATIC_SAMPLER_DESC Samplers[3];
 
+	Samplers[0].Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+	Samplers[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+	Samplers[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+	Samplers[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+	Samplers[0].MipLODBias = 0;
+	Samplers[0].MaxAnisotropy = 0;
+	Samplers[0].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+	Samplers[0].BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+	Samplers[0].MinLOD = 0.0f;
+	Samplers[0].MaxLOD = D3D12_FLOAT32_MAX;
+	Samplers[0].ShaderRegister = 0;
+	Samplers[0].RegisterSpace = 0;
+	Samplers[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+	Samplers[1] = Samplers[0];
+	Samplers[1].AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	Samplers[1].AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	Samplers[1].AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	Samplers[1].ShaderRegister = 1;
+
+	Samplers[2] = Samplers[0];
+	Samplers[2].AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	Samplers[2].AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	Samplers[2].AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	Samplers[2].ShaderRegister = 2;
+	Samplers[2].Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+	Samplers[2].ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
 
 	//General and Animation rootsignature
 	{
@@ -339,7 +353,7 @@ void Renderer::CreateRootSignature()
 
 
 		CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc;
-		rootSignatureDesc.Init_1_1(_countof(rootParameters), rootParameters, 1, &sampler, rootSignatureFlags);
+		rootSignatureDesc.Init_1_1(_countof(rootParameters), rootParameters, _countof(Samplers), Samplers, rootSignatureFlags);
 
 		ID3DBlob* signature = nullptr;
 		ID3DBlob* error = nullptr;
@@ -377,7 +391,7 @@ void Renderer::CreateRootSignature()
 		rootParameters[2].InitAsDescriptorTable(1, &ranges[2], D3D12_SHADER_VISIBILITY_PIXEL);
 
 		CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc;
-		rootSignatureDesc.Init_1_1(_countof(rootParameters), rootParameters, 1, &sampler, rootSignatureFlags);
+		rootSignatureDesc.Init_1_1(_countof(rootParameters), rootParameters, _countof(Samplers), Samplers, rootSignatureFlags);
 
 		ID3DBlob* signature = nullptr;
 		ID3DBlob* error = nullptr;
@@ -541,7 +555,6 @@ void Renderer::CreatePipelineState()
 	psoDesc.pRootSignature = m_rootSignature_General;
 	psoDesc.VS = CD3DX12_SHADER_BYTECODE(depthOnlyAnimationVSShader);
 	psoDesc.PS = CD3DX12_SHADER_BYTECODE(depthOnlyPSShader);
-
 	if (FAILED(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_DepthOnlyAnimationPSO)))) __debugbreak();
 
 	if (depthOnlyVSShader)
@@ -779,33 +792,40 @@ void Renderer::GlobalConstantUpdate()
 	GLOBAL_CONSTANT* globalConstant = (GLOBAL_CONSTANT*)(m_cbvManager->GetStartCBV() + 0);
 	View = camera.GetViewRow();
 	Proj = camera.GetProjRow();
+	invView = View.Invert();
 	globalConstant->ViewProj = (View * Proj).Transpose();
 	globalConstant->eyePos = Vector4(camera.m_eyePos.x, camera.m_eyePos.y, camera.m_eyePos.z, 1.0f);
+	globalConstant->lightPos = lightPos;
 }
 
-void Renderer::GlobalConstantLightUpdate()
+void Renderer::GlobalShadowFrustumUpdate()
 {
-	lightDirection.Normalize();
+	shadowDirection.Normalize();
 	Vector3 up = Vector3(0.0f, 1.0f, 0.0f);
-	if (abs(up.Dot(lightDirection) + 1.0f) < 1e-5)
+	if (abs(up.Dot(shadowDirection) + 1.0f) < 1e-5)
 		up = Vector3(1.0f, 0.0f, 0.0f);
 
-	View = XMMatrixLookAtLH(
-		lightPos, lightPos + lightDirection,
+	shadowPos = m_ObjectState[0].pos + Vector3(-5.0f, 20.0f, 0.0f);
+	shadowView = XMMatrixLookAtLH(
+		shadowPos, shadowPos + shadowDirection,
 		up);
 
-	Proj = XMMatrixPerspectiveFovLH(
-		XMConvertToRadians(120.0f), 1.0f, 0.01f, 100.0f);
+	//Proj = XMMatrixPerspectiveFovLH(
+	//	XMConvertToRadians(120.0f), 1.0f, 0.01f, 100.0f);
+
+	shadowProj = XMMatrixOrthographicLH(40.0f, 40.0f, 1.0f, 30.0f);
 
 	GLOBAL_CONSTANT* globalConstant = (GLOBAL_CONSTANT*)(m_cbvManager->GetStartCBV() + 0);
-	globalConstant->light.viewProj= (View * Proj).Transpose();
-	globalConstant->light.position = Vector3(lightPos.x, lightPos.y, lightPos.z);
-	globalConstant->light.direction = lightDirection;
+	globalConstant->shadowFrustum.viewProj = (shadowView * shadowProj).Transpose();
+	globalConstant->shadowFrustum.position = Vector4(shadowPos.x, shadowPos.y, shadowPos.z, 1.0f);
+	globalConstant->shadowFrustum.direction = Vector4(shadowDirection.x, shadowDirection.y, shadowDirection.z, 0.0f);
 }
 
 // Update frame-based values.
 void Renderer::Update(float dt)
 {
+	if (dt <= 0.0f)
+		return;
 
 	m_animator[1].UpdateAnimation(dt);
 	IsActionKeyDown = false;
@@ -823,9 +843,6 @@ void Renderer::Update(float dt)
 
 	camera.SetEyePos();
 
-	GlobalConstantLightUpdate();
-	GlobalConstantUpdate();
-
 	AnimType animType = GetAnimationType(camera.IsFirstPersonView);
 	m_animator[0].RequestAnimation(&m_animations[0][(int)animType]);
 
@@ -840,9 +857,9 @@ void Renderer::Update(float dt)
 			{
 				//캐릭터의 방향이 카메라의 방향과 일치하도록
 				Vector3 moveDir = Vector3(0, 0, 0);
-				if (keyPressed['W'] && keyPressed['A'] && keyPressed[16] && !camera.IsMouseMoving)
+				if (keyPressed['W'] && keyPressed['A'] && keyPressed[16])
 					moveDir = GetRotatedDir(camera.GetFrontDir(), -20.0f);
-				else if (keyPressed['W'] && keyPressed['D'] && keyPressed[16] && !camera.IsMouseMoving)
+				else if (keyPressed['W'] && keyPressed['D'] && keyPressed[16])
 					moveDir = GetRotatedDir(camera.GetFrontDir(), 20.0f);
 				else if (keyPressed['W'] && keyPressed['A'])
 					moveDir = camera.GetForwardLeftDir();   // 대각선 왼앞
@@ -865,7 +882,6 @@ void Renderer::Update(float dt)
 				//MouseMoving중엔 한번에 카메라방향에 캐릭터 방향 맞추기
 				//interruptibleAnimation이 아닌 애니메이션 동작을 누르고 있을 땐, 바로 방향 전환
 				m_ObjectState[0].rotation.y = (camera.IsMouseMoving || IsNumberKeyPressed(keyPressed)) ? targetYaw : newYaw;
-
 			}
 		}
 	}
@@ -874,6 +890,8 @@ void Renderer::Update(float dt)
 		camera.UpdateKeyboard(dt, keyPressed);
 	}
 
+	GlobalShadowFrustumUpdate();
+	GlobalConstantUpdate();
 
 	m_ObjectState[0].scale.x = 2.0f;
 	m_ObjectState[0].scale.y = 2.0f;
@@ -939,6 +957,9 @@ void Renderer::ObjectRender()
 	//square
 	Matrix object6_Matrix = GetObjectWorldMatrix(m_ObjectState[6]);
 
+	BoundingFrustum::CreateFromMatrix(frustum, Proj);
+	frustum.Transform(frustum, invView);
+
 	//ShadowMapping Render
 	SetShadowViewport();
 	m_commandList->RSSetViewports(1, &m_shadowViewport);
@@ -949,10 +970,15 @@ void Renderer::ObjectRender()
 
 	m_commandList->OMSetRenderTargets(0, nullptr, FALSE, &m_shadowMapSrvContainer.dsvHandle);
 	m_commandList->ClearDepthStencilView(m_shadowMapSrvContainer.dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-	
-	m_Models[0].DrawAnimation(&object0_Matrix);
-	m_Models[0].DrawAnimation(&object1_Matrix);
-	m_Models[0].DrawAnimation(&object2_Matrix);
+
+	m_Models[0].localAABB.Transform(worldAABB, object0_Matrix);
+	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(&object0_Matrix);
+
+	m_Models[0].localAABB.Transform(worldAABB, object1_Matrix);
+	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(&object1_Matrix);
+
+	m_Models[0].localAABB.Transform(worldAABB, object2_Matrix);
+	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(&object2_Matrix);
 
 	//Main Render
 	SetMainViewport();
@@ -971,10 +997,15 @@ void Renderer::ObjectRender()
 	m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 	m_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-	//animation object
-	m_Models[0].DrawAnimation(&object0_Matrix);
-	m_Models[0].DrawAnimation(&object1_Matrix);
-	m_Models[0].DrawAnimation(&object2_Matrix);
+	m_Models[0].localAABB.Transform(worldAABB, object0_Matrix);
+	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(&object0_Matrix);
+
+	m_Models[0].localAABB.Transform(worldAABB, object1_Matrix);
+	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(&object1_Matrix);
+
+	m_Models[0].localAABB.Transform(worldAABB, object2_Matrix);
+	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(&object2_Matrix);
+
 	//m_Models[3].DrawAnimation(&object5_Matrix);
 
 
@@ -989,7 +1020,7 @@ void Renderer::ObjectRender()
 	m_Models[2].DrawGeneralMesh(&object4_Matrix);
 
 	//square
-	m_Models[4].DrawGeneralMesh(&object6_Matrix);
+	//m_Models[4].DrawGeneralMesh(&object6_Matrix);
 }
 
 // Render the scene.

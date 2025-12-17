@@ -12,5 +12,5 @@ struct VS_INPUT
 float4 VSMain(VS_INPUT input) : SV_POSITION
 {
     float4 pos = mul(float4(input.pos, 1.0f), Model);
-    return mul(pos, light.viewProj);
+    return mul(pos, shadowFrustum.viewProj);
 }

@@ -42,13 +42,10 @@ struct NormalVertex
 	Vector3 StartPos;  //vertex시작 지점
 };
 
-struct Light {
-	Vector3 radiance = Vector3(5.0f); // strength
-	float fallOffStart = 0.0f;
-	Vector3 direction = Vector3(0.0f, 0.0f, 1.0f);
-	float fallOffEnd = 20.0f;
-	Vector3 position = Vector3(0.0f, 0.0f, -2.0f);
-	float spotPower = 6.0f;
+struct ShadowFrustum {
+	Vector4 radiance = Vector4(5.0f, 5.0f, 5.0f, 1.0f); // strength
+	Vector4 direction = Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+	Vector4 position = Vector4(0.0f, 0.0f, -2.0f, 1.0f);
 
 	Matrix viewProj; // 그림자 렌더링에 필요
 };
@@ -57,8 +54,9 @@ struct GLOBAL_CONSTANT
 {
 	Matrix ViewProj;
 	Vector4 eyePos;
+	Vector4 lightPos;
 
-	Light light;
+	ShadowFrustum shadowFrustum;
 };
 
 struct MODEL_CONSTANT
@@ -70,6 +68,7 @@ struct MODEL_CONSTANT
 struct MATERIAL_CONSTANT
 {
 	int useNormalMap = 0;
+	int useShadowMap = 0;
 };
 
 struct SkinnedConstants
@@ -106,7 +105,7 @@ struct meshNode
 	meshNode* mParent = nullptr;
 };
 
-struct aniNode 
+struct aniNode
 {
 	std::string name;
 	int mNumChildren = 0;
@@ -139,7 +138,7 @@ struct TRI_GROUP_PER_MTL
 	SRV_CONTAINER* srvContainer = nullptr;
 };
 
-struct material 
+struct material
 {
 	char* albedoTexFilename = nullptr;
 	char* aoTexFilename = nullptr;
@@ -150,7 +149,7 @@ struct material
 	UINT meshNum = 0;
 	UINT** index = nullptr; //첫번째 괄호는 mesh순서에 해당
 	UINT* face_cnt = nullptr; //mesh당 face가 몇개 그려졌는지
-	
+
 	~material()
 	{
 		SafeDeleteArray(&albedoTexFilename);
@@ -171,7 +170,7 @@ struct material
 struct SkinnedMesh //일단 이렇게 확실히 mesh로 나누어야함. 이렇게 안하면 각 mesh의 index가 vertex를 참조못함
 {
 	SkinnedVertex* vertices = nullptr;
-	UINT verticesNum = 0; 
+	UINT verticesNum = 0;
 
 	~SkinnedMesh()
 	{
@@ -191,6 +190,7 @@ struct JustMeshData
 	char* normalTexFilename = nullptr;
 	char* metallicTexFilename = nullptr;
 	char* roughnessTexFilename = nullptr;
+
 
 };
 
@@ -213,4 +213,6 @@ struct MeshDataInfo {
 	Matrix m_defaultTransform;
 	Matrix* finalBoneMatrices = nullptr;
 
+	//boundingBox
+	BoundingBox boundingBox;
 };

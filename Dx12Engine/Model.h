@@ -28,6 +28,9 @@ public:
 	Model();
 	~Model();
 
+	//boundingBox
+	BoundingBox localAABB;
+
 private:
 	ID3D12Device* m_device = nullptr;
 	ID3D12GraphicsCommandList* m_commandList = nullptr;

@@ -59,6 +59,10 @@ void GeometryGenerator::Normalize(const Vector3 center,
 		}
 	}
 
+	//boundingBox
+	result.boundingBox.Center = ((vmin + vmax) * 0.5f + translation) * scale;
+	result.boundingBox.Extents = ((vmax - vmin) * 0.5f) * scale;
+
 	modelLoader.defaultTransform = Matrix::CreateTranslation(translation) * Matrix::CreateScale(scale);
 	result.m_defaultTransform = modelLoader.defaultTransform;
 }

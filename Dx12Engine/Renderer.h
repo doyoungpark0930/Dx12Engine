@@ -56,7 +56,7 @@ private:
 	void Create_Vertex_Index();
 	void CreateModels();
 	void GlobalConstantUpdate();
-	void GlobalConstantLightUpdate();
+	void GlobalShadowFrustumUpdate();
 
 	UINT clientWidth;
 	UINT clientHeight;
@@ -106,14 +106,23 @@ private:
 
 	Matrix View;
 	Matrix Proj;
+	Matrix invView;
+
+	Matrix shadowView;
+	Matrix shadowProj;
+
+	BoundingBox worldAABB;
+	BoundingFrustum frustum;
 
 	FLOAT aspect;
 
 	Animator* m_animator = nullptr;
 	Animation** m_animations = nullptr;
 
-	Vector3 lightPos = Vector3(0.0f, 5.0f, 2.0f);
-	Vector3 lightDirection = Vector3(0.0f, -1.0f, 1.0f);
+	Vector4 lightPos = Vector4(-20.0f, 10.0f, 25.0f, 1.0f);
+
+	Vector3 shadowPos;
+	Vector3 shadowDirection = Vector3(3.0f, -5.0f, -1.0f);
 
 	bool IsActionKeyDown = false;
 	char actionKey[32];
