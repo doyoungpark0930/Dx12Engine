@@ -40,25 +40,24 @@ OS: Windows 10 이상 (10 미만은 내장 GPU 사용)
    5. 스키닝 및 애니메이션 구현 : Bone.cpp, Animator.cpp, Animation.cpp
 
 ## 주요 구현 내용
-DirectX12 이용
+• DirectX 12 기반 자체 렌더링 엔진 구현
+  - Shadow Mapping + PCF 적용
+  - Cube Mapping 기반 HDR 환경맵 및 Tone Mapping 구현
+  - PBR(Material: Albedo / Metallic / Roughness / AO) 파이프라인 구축
 
-3ds max Export plug-in 제작.
-자체포멧(mesh,ani파일 분리)형성 및 모델로딩
-애니메이션 스키닝, 애니메이션 변환간 블렌딩
+• 3ds Max Export Plug-in 제작
+  - Mesh / Animation 분리된 자체 포맷 설계
+  - Skeletal Animation Skinning 구현
+  - Animation 간 Blending 및 변환 로직 구현
 
-애니메이션 조작 및 간단한 공격 로직
+• Asset 파이프라인 구축
+  - Mixamo, CGTrader, Sketchfab, Unity Asset Store 모델 정규화
+  - Multi-Material 시스템 대응
+  - 자체 포맷으로 Export → Runtime 로딩
 
-MultiMaterial 시스템 적용
-
-mixamo, cgtrader, sketchfab, Unity asset store등 다양한 사이트에서 모델 다운로드 후 정리 과정을 거친 export
-
-Shadow Mapping 및 PCF적용
-
-CubeMapping 시 hdr적용 및 톤매핑 
-
-PBR적용
-
-프러스텀 컬링 적용
+• Gameplay / Engine Logic
+  - Animation State 제어 및 간단한 공격 로직 구현
+  - Frustum Culling 적용을 통한 렌더링 최적화
 
 ## cpu 메모리 관리
 
