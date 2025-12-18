@@ -46,9 +46,13 @@ DirectX12 이용
 자체포멧(mesh,ani파일 분리)형성 및 모델로딩
 애니메이션 스키닝, 애니메이션 변환간 블렌딩
 
+애니메이션 조작 및 간단한 공격 로직
+
 MultiMaterial 시스템 적용
 
 mixamo, cgtrader, sketchfab, Unity asset store등 다양한 사이트에서 모델 다운로드 후 정리 과정을 거친 export
+
+Shadow Mapping 및 PCF적용
 
 CubeMapping 시 hdr적용 및 톤매핑 
 
@@ -81,7 +85,8 @@ Pool 기반으로 미리 할당 후 Sub-Allocation 방식으로 연속 관리
 1) overframedBuffer(cpu - gpu 멀티스레딩 적용)
 2)  다중 오브젝트 렌더링 시 프레임 저하 문제 분석
    => DX12 멀티스레딩 학습 및 적용 예정
-3) 텍스춰 pool 시스템 구축
+3) PBR 일반 오브젝트 렌더링 시에도 톤매핑 적용
+4) 텍스춰 pool 시스템 구축
 
 포트폴리오 영상 : https://www.youtube.com/watch?v=Pzj5By9eyDg
 
