@@ -1,15 +1,4 @@
-cbuffer GLOBAL_CONSTANT : register(b0)
-{
-    matrix ViewProj;
-    float4 eyePos;
-    float4 lightPos;
-};
-
-cbuffer MODEL_CONSTANT : register(b1)
-{
-    matrix Model;
-    matrix NormalModel;
-};
+#include "Common.hlsl"
 
 struct VS_INPUT
 {
@@ -33,7 +22,8 @@ PSInput VSMain(VS_INPUT input)
 
     float4 worldPos = mul(float4(posModel, 1.0f), Model);
     Output.worldPos = worldPos.xyz;
-    Output.position = mul(worldPos, ViewProj);
+    Output.position = mul(float4(worldPos.xyz, 0.0), View); //이동은 제거
+    Output.position = mul(float4(Output.position.xyz, 1.0), Proj);
 
     return Output;
 }

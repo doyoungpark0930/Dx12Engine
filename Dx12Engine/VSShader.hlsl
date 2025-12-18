@@ -28,7 +28,8 @@ PSInput VSMain(VS_INPUT input)
 
     float4 worldPos = mul(float4(posModel, 1.0f), Model);
     Output.worldPos = worldPos.xyz;
-    Output.position = mul(worldPos, ViewProj);
+    Output.position = mul(worldPos, View);
+    Output.position = mul(Output.position, Proj);
     Output.normal = normalize(mul(float4(normalModel, 0.0f), NormalModel).xyz);
     Output.tangent = mul(float4(tangentModel, 0.0f), Model).xyz;
     Output.uv = input.uv;

@@ -245,6 +245,7 @@ SRV_CONTAINER SrvManager::CreateCubemapTexture(const wchar_t* szFileName)
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
 	srvDesc.Format = texDesc.Format;
+
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
 
 	srvDesc.TextureCube.MipLevels = texDesc.MipLevels;
@@ -253,11 +254,7 @@ SRV_CONTAINER SrvManager::CreateCubemapTexture(const wchar_t* szFileName)
 		m_descritorHeap->GetCPUDescriptorHandleForHeapStart());
 	handle.Offset(allocatedNum, descriptorSize);
 
-	m_device->CreateShaderResourceView(
-		m_textures[allocatedNum],
-		&srvDesc,
-		handle
-	);
+	m_device->CreateShaderResourceView(m_textures[allocatedNum], &srvDesc, handle);
 
 	m_srvContainer[allocatedNum].pSrvResource = m_textures[allocatedNum];
 	m_srvContainer[allocatedNum].srvHandle = handle;

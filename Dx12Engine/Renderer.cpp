@@ -295,8 +295,9 @@ void Renderer::CreateRootSignature()
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
 	D3D12_STATIC_SAMPLER_DESC Samplers[3];
-
-	Samplers[0].Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+	 
+	//Samplers[0].Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+	Samplers[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
 	Samplers[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 	Samplers[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 	Samplers[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
@@ -326,8 +327,8 @@ void Renderer::CreateRootSignature()
 
 	//General and Animation rootsignature
 	{
-		CD3DX12_DESCRIPTOR_RANGE1 ranges[5];
-		CD3DX12_ROOT_PARAMETER1 rootParameters[5];
+		CD3DX12_DESCRIPTOR_RANGE1 ranges[6];
+		CD3DX12_ROOT_PARAMETER1 rootParameters[6];
 
 		// b0: GLOBAL_CONSTANT (1개 고정)
 		ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, 0);
@@ -348,13 +349,16 @@ void Renderer::CreateRootSignature()
 		rootParameters[3].InitAsDescriptorTable(1, &ranges[3], D3D12_SHADER_VISIBILITY_PIXEL);
 
 		//t8 : shadowMap
-		ranges[4].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 8, 0);
+		ranges[4].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 3, 8, 0);
 		rootParameters[4].InitAsDescriptorTable(1, &ranges[4], D3D12_SHADER_VISIBILITY_PIXEL);
 
+		// t15 ~ t18 : cubemap
+		ranges[5].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 15, 0);
+		rootParameters[5].InitAsDescriptorTable(1, &ranges[5], D3D12_SHADER_VISIBILITY_PIXEL);
 
 		CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc;
 		rootSignatureDesc.Init_1_1(_countof(rootParameters), rootParameters, _countof(Samplers), Samplers, rootSignatureFlags);
-
+		 
 		ID3DBlob* signature = nullptr;
 		ID3DBlob* error = nullptr;
 
@@ -386,8 +390,8 @@ void Renderer::CreateRootSignature()
 		ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1, 0);
 		rootParameters[1].InitAsDescriptorTable(1, &ranges[1], D3D12_SHADER_VISIBILITY_VERTEX);
 
-		// t0~t7 : srv
-		ranges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0);
+		// t15 ~ t18 : cubemap
+		ranges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 15, 0);
 		rootParameters[2].InitAsDescriptorTable(1, &ranges[2], D3D12_SHADER_VISIBILITY_PIXEL);
 
 		CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc;
@@ -737,6 +741,7 @@ void Renderer::CreateModels()
 	m_Models[0].CreateModelFromFile(meshesInfo);
 
 	/*
+	//Sci_fi_girl
 	{
 		char basePath2[512];
 		WideCharToMultiByte(CP_UTF8, 0, DXUtil::m_assetsResourcesPath, -1, basePath2, sizeof(basePath2), NULL, NULL); // wchar → MultiByte 변환 (UTF-8 기준)
@@ -752,15 +757,20 @@ void Renderer::CreateModels()
 		m_animator[1].OnInit(m_animations[1], 1, meshesInfo2.m_defaultTransform);
 		meshesInfo2.finalBoneMatrices = m_animator[1].GetFinalBoneMatrices();
 		m_Models[3].CreateModelFromFile(meshesInfo2);
-	}
-	*/
+	}*/
+	
 
 	//CubeMap
-	char* cubeMapPath = MakeFilePath(DXUtil::m_assetsResourcesPath, "Cubemap\\HDRI\\Mountain\\",
-		"mountainEnvHDR.dds");
+	char* envIBLPath = MakeFilePath(DXUtil::m_assetsResourcesPath, "Cubemap\\HDRI\\Mountain\\","mountainEnvHDR.dds");
+	char* specularIBLPath = MakeFilePath(DXUtil::m_assetsResourcesPath, "Cubemap\\HDRI\\Mountain\\", "mountainSpecularHDR.dds");
+	char* irradianceIBLPath = MakeFilePath(DXUtil::m_assetsResourcesPath, "Cubemap\\HDRI\\Mountain\\", "mountainDiffuseHDR.dds");
+	char* brdfPath = MakeFilePath(DXUtil::m_assetsResourcesPath, "Cubemap\\HDRI\\Mountain\\", "mountainBrdf.dds");
 	JustMeshData cubeMapping = GeometryGenerator::MakeBox(50.0f);
 	ReverseIndices(cubeMapping.indices, cubeMapping.indicesNum);
-	cubeMapping.albedoTexFilename = cubeMapPath;
+	cubeMapping.envIBL_Filename = envIBLPath; 
+	cubeMapping.specularIBL_Filename = specularIBLPath;
+	cubeMapping.irradianceIBL_Filename = irradianceIBLPath;
+	cubeMapping.brdf_Filename = brdfPath;
 	m_Models[1].CreateCubeMap(cubeMapping);
 
 	//Ground
@@ -793,9 +803,11 @@ void Renderer::GlobalConstantUpdate()
 	View = camera.GetViewRow();
 	Proj = camera.GetProjRow();
 	invView = View.Invert();
-	globalConstant->ViewProj = (View * Proj).Transpose();
+	globalConstant->View = View.Transpose();
+	globalConstant->Proj = Proj.Transpose();
 	globalConstant->eyePos = Vector4(camera.m_eyePos.x, camera.m_eyePos.y, camera.m_eyePos.z, 1.0f);
 	globalConstant->lightPos = lightPos;
+	globalConstant->strengthIBL = 0.15f;
 }
 
 void Renderer::GlobalShadowFrustumUpdate()
@@ -810,8 +822,7 @@ void Renderer::GlobalShadowFrustumUpdate()
 		shadowPos, shadowPos + shadowDirection,
 		up);
 
-	//Proj = XMMatrixPerspectiveFovLH(
-	//	XMConvertToRadians(120.0f), 1.0f, 0.01f, 100.0f);
+	//shadowProj= XMMatrixPerspectiveFovLH(XMConvertToRadians(120.0f), 1.0f, 0.01f, 100.0f);
 
 	shadowProj = XMMatrixOrthographicLH(40.0f, 40.0f, 1.0f, 30.0f);
 
@@ -942,7 +953,6 @@ void Renderer::ObjectRender()
 	Matrix object0_Matrix = GetObjectWorldMatrix(m_ObjectState[0]);
 
 	Matrix object1_Matrix = GetObjectWorldMatrix(m_ObjectState[1]);
-
 	Matrix object2_Matrix = GetObjectWorldMatrix(m_ObjectState[2]);
 
 	//cubeMap
@@ -958,7 +968,7 @@ void Renderer::ObjectRender()
 	Matrix object6_Matrix = GetObjectWorldMatrix(m_ObjectState[6]);
 
 	BoundingFrustum::CreateFromMatrix(frustum, Proj);
-	frustum.Transform(frustum, invView);
+	frustum.Transform(frustum, invView); //model*view*proj에서 model에 바로 frustum적용하기 위함
 
 	//ShadowMapping Render
 	SetShadowViewport();
@@ -979,6 +989,9 @@ void Renderer::ObjectRender()
 
 	m_Models[0].localAABB.Transform(worldAABB, object2_Matrix);
 	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(&object2_Matrix);
+
+	m_Models[3].localAABB.Transform(worldAABB, object5_Matrix);
+	//if (frustum.Intersects(worldAABB)) m_Models[3].DrawAnimation(&object5_Matrix);
 
 	//Main Render
 	SetMainViewport();
@@ -1006,7 +1019,8 @@ void Renderer::ObjectRender()
 	m_Models[0].localAABB.Transform(worldAABB, object2_Matrix);
 	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(&object2_Matrix);
 
-	//m_Models[3].DrawAnimation(&object5_Matrix);
+	m_Models[3].localAABB.Transform(worldAABB, object5_Matrix);
+	//if (frustum.Intersects(worldAABB)) m_Models[3].DrawAnimation(&object5_Matrix);
 
 
 	//cubemap

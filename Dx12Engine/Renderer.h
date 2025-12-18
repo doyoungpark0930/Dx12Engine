@@ -119,7 +119,7 @@ private:
 	Animator* m_animator = nullptr;
 	Animation** m_animations = nullptr;
 
-	Vector4 lightPos = Vector4(-20.0f, 10.0f, 25.0f, 1.0f);
+	Vector4 lightPos = Vector4(-80.0f, 40.0f, 80.0f, 1.0f);
 
 	Vector3 shadowPos;
 	Vector3 shadowDirection = Vector3(3.0f, -5.0f, -1.0f);

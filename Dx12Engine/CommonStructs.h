@@ -5,9 +5,15 @@ using namespace DirectX::SimpleMath;
 
 #define MAX_BONE_INFLUENCE 4
 #define MAX_TEXTURE_NUM 5
-#define NORMALMAP_SLOT 2
+
 #define TicksPerSecond 4800
 #define ModelMatrixNum 128
+
+#define ALBEDO_SLOT 0
+#define AO_SLOT 1
+#define NORMALMAP_SLOT 2
+#define METALLIC_SLOT 3
+#define	ROUGHNESS_SLOT 4
 
 struct SkinnedVertex
 {
@@ -52,11 +58,13 @@ struct ShadowFrustum {
 
 struct GLOBAL_CONSTANT
 {
-	Matrix ViewProj;
+	Matrix View;
+	Matrix Proj;
 	Vector4 eyePos;
 	Vector4 lightPos;
 
 	ShadowFrustum shadowFrustum;
+	float strengthIBL;
 };
 
 struct MODEL_CONSTANT
@@ -67,7 +75,13 @@ struct MODEL_CONSTANT
 
 struct MATERIAL_CONSTANT
 {
-	int useNormalMap = 0;
+	int useAlbedoTex;
+	int useAoTex;
+	int useNormalTex;
+	int useMetallicTex;
+	int useRoughnessTex;
+	int useGlossinessTex;
+
 	int useShadowMap = 0;
 };
 
@@ -191,6 +205,10 @@ struct JustMeshData
 	char* metallicTexFilename = nullptr;
 	char* roughnessTexFilename = nullptr;
 
+	char* envIBL_Filename = nullptr;
+	char* specularIBL_Filename = nullptr;
+	char* irradianceIBL_Filename = nullptr;
+	char* brdf_Filename = nullptr;
 
 };
 

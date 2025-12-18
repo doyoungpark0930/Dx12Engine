@@ -95,7 +95,7 @@ void Camera::SetCharacterPos(Vector3 Pos)
 void Camera::SetEyePos()
 {
 	if (camera.IsFirstPersonView)
-		m_eyePos = m_characterPosition - m_viewDir * 3.5 + Vector3(0.0f, 0.25f, 0.0f);
+		m_eyePos = m_characterPosition - m_viewDir * 2.5 + Vector3(0.0f, 0.25f, 0.0f);
 }
 
 Vector3 Camera::GetFrontDir()

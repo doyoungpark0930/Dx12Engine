@@ -16,7 +16,7 @@ Renderer* Model::m_renderer = nullptr;
 DescriptorPool* Model::m_descriptorPool = nullptr;
 SrvManager* Model::m_srvManager = nullptr;
 CbvManager* Model::m_cbvManager = nullptr;
-
+SRV_CONTAINER* Model::m_srvContainer_CubeMap = nullptr;
 Model::Model()
 {
 	m_device = m_renderer->GetDevice();
@@ -129,16 +129,30 @@ void Model::CreateCubeMap(JustMeshData& meshData)
 	IndexBufferView = CreateIndexBuffer(meshData.indices, meshData.indicesNum);
 	indexCnt = meshData.indicesNum;
 
-	if (meshData.albedoTexFilename)
+	m_srvContainer_CubeMap = new SRV_CONTAINER[4];
+	if (meshData.envIBL_Filename)
 	{
-		m_srvContainer_CubeMap = new SRV_CONTAINER;
-		CreateCubeTextureFromName(meshData.albedoTexFilename, *m_srvContainer_CubeMap);
+		CreateCubeTextureFromName(meshData.envIBL_Filename, m_srvContainer_CubeMap[0]);
+	}
+	if (meshData.specularIBL_Filename)
+	{
+		CreateCubeTextureFromName(meshData.specularIBL_Filename, m_srvContainer_CubeMap[1]);
+	}
+	if (meshData.irradianceIBL_Filename)
+	{
+		CreateCubeTextureFromName(meshData.irradianceIBL_Filename, m_srvContainer_CubeMap[2]);
+	}
+	if (meshData.brdf_Filename)
+	{
+		CreateTextureFromName(meshData.brdf_Filename, m_srvContainer_CubeMap[3]);
 	}
 
 	SafeDeleteArray(&meshData.vertices);
 	SafeDeleteArray(&meshData.indices);
-	SafeDeleteArray(&meshData.albedoTexFilename);
-
+	SafeDeleteArray(&meshData.envIBL_Filename);
+	SafeDeleteArray(&meshData.specularIBL_Filename);
+	SafeDeleteArray(&meshData.irradianceIBL_Filename);
+	SafeDeleteArray(&meshData.brdf_Filename);
 }
 
 void Model::CreateGeneralModel(JustMeshData& meshData)
@@ -290,11 +304,55 @@ void Model::DrawGeneralMesh(const Matrix* pMatrix) //일단 materialNum은 1이라고 
 		m_commandList->SetGraphicsRootDescriptorTable(4, shadowGpu);
 	}
 
+	// cube map SRV 바인딩(t15)
+	{
+		CD3DX12_CPU_DESCRIPTOR_HANDLE cubeMapCpu;
+		CD3DX12_GPU_DESCRIPTOR_HANDLE cubeMapGpu;
+
+		// shadow map용 디스크립터 1개만 할당
+		m_descriptorPool->AllocDescriptorTable(&cubeMapCpu, &cubeMapGpu, 4);
+
+		//envIBL / specularIBL / irradianceIBL / brdfIBL
+		for (int i = 0; i < 4; i++)
+		{
+			if (m_srvContainer_CubeMap[i].pSrvResource)
+			{
+				m_device->CopyDescriptorsSimple(1, cubeMapCpu, m_srvContainer_CubeMap[i].srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				cubeMapCpu.Offset(1, descriptorSize);
+			}
+			else
+			{
+				cubeMapGpu.Offset(1, descriptorSize); //resource없으면 Descriptor를 빈공간으로
+			}
+		}
+		// root parameter 4 (t5)
+		m_commandList->SetGraphicsRootDescriptorTable(5, cubeMapGpu);
+	}
+
 	//MATERIAL_CONSTANT
 	{
 		MATERIAL_CONSTANT* pMaterialConstant = (MATERIAL_CONSTANT*)(*materialContainer).pSystemMemAddr;
-		if (m_srvContainer[NORMALMAP_SLOT].pSrvResource != nullptr) pMaterialConstant->useNormalMap = true;
-		else pMaterialConstant->useNormalMap = false;
+
+		if (m_srvContainer[ALBEDO_SLOT].pSrvResource != nullptr) pMaterialConstant->useAlbedoTex = true;
+		else pMaterialConstant->useAlbedoTex = false;
+		if (m_srvContainer[AO_SLOT].pSrvResource != nullptr) pMaterialConstant->useAoTex = true;
+		else pMaterialConstant->useAoTex = false;
+		if (m_srvContainer[NORMALMAP_SLOT].pSrvResource != nullptr) pMaterialConstant->useNormalTex = true;
+		else pMaterialConstant->useNormalTex = false;
+		if (m_srvContainer[METALLIC_SLOT].pSrvResource != nullptr) pMaterialConstant->useMetallicTex = true;
+		else pMaterialConstant->useMetallicTex = false;
+		if (m_srvContainer[ROUGHNESS_SLOT].pSrvResource != nullptr)
+		{
+			pMaterialConstant->useRoughnessTex = true;
+			pMaterialConstant->useGlossinessTex = false;
+		}
+		else
+		{
+			pMaterialConstant->useRoughnessTex = false;
+			pMaterialConstant->useGlossinessTex = false;
+		}
+
+
 		pMaterialConstant->useShadowMap = true;
 		m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, (*materialContainer).CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		m_commandList->SetGraphicsRootDescriptorTable(2, gpuDescriptorTable);
@@ -347,8 +405,8 @@ void Model::DrawCubeMap(const Matrix* pMatrix)
 	CD3DX12_GPU_DESCRIPTOR_HANDLE gpuDescriptorTable = {};
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable = {};
 
-	//model행렬(1) + CubeMapTexture
-	UINT requiredDescriptorCount = 2;
+	//model행렬(1) + CubeMapTexture(4)
+	UINT requiredDescriptorCount = 5;
 	m_descriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, requiredDescriptorCount);
 
 	// modelCBV
@@ -360,14 +418,18 @@ void Model::DrawCubeMap(const Matrix* pMatrix)
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	//TEXTURES
-	if (m_srvContainer_CubeMap != nullptr)
+	//envIBL / specularIBL / irradianceIBL / brdfIBL
+	for (int i = 0; i < 4; i++) 
 	{
-		m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, m_srvContainer_CubeMap->srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-		cpuDescriptorTable.Offset(1, descriptorSize);
-	}
-	else
-	{
-		cpuDescriptorTable.Offset(1, descriptorSize); //resource없으면 Descriptor를 빈공간으로
+		if (m_srvContainer_CubeMap[i].pSrvResource)
+		{
+			m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, m_srvContainer_CubeMap[i].srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			cpuDescriptorTable.Offset(1, descriptorSize);
+		}
+		else
+		{
+			cpuDescriptorTable.Offset(1, descriptorSize); //resource없으면 Descriptor를 빈공간으로
+		}
 	}
 
 	m_commandList->SetGraphicsRootDescriptorTable(2, gpuDescriptorTable);
@@ -449,8 +511,33 @@ void Model::DrawAnimation(const Matrix* pMatrix)
 		m_commandList->SetGraphicsRootDescriptorTable(4, shadowGpu);
 	}
 
-	//global / model / mtl1 (mtl_constant), (textures...) / mtl2 (mtl_constant), (textures...) / mtl3 ..
+	// cube map SRV 바인딩(t15)
+	{
+		CD3DX12_CPU_DESCRIPTOR_HANDLE cubeMapCpu;
+		CD3DX12_GPU_DESCRIPTOR_HANDLE cubeMapGpu;
 
+		// shadow map용 디스크립터 1개만 할당
+		m_descriptorPool->AllocDescriptorTable(&cubeMapCpu, &cubeMapGpu, 4);
+
+		//envIBL / specularIBL / irradianceIBL / brdfIBL
+		for (int i = 0; i < 4; i++)
+		{
+			if (m_srvContainer_CubeMap[i].pSrvResource)
+			{
+				m_device->CopyDescriptorsSimple(1, cubeMapCpu, m_srvContainer_CubeMap[i].srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				cubeMapCpu.Offset(1, descriptorSize);
+			}
+			else
+			{
+				cubeMapGpu.Offset(1, descriptorSize); //resource없으면 Descriptor를 빈공간으로
+			}
+		}
+		// root parameter 4 (t5)
+		m_commandList->SetGraphicsRootDescriptorTable(5, cubeMapGpu);
+	}
+
+
+	//global / model / mtl1 (mtl_constant), (textures...) / mtl2 (mtl_constant), (textures...) / mtl3 ..
 	for (int i = 0; i < m_materialNum; i++)
 	{
 		TRI_GROUP_PER_MTL* pTriGroup = m_TriGroupList + i;
@@ -458,8 +545,26 @@ void Model::DrawAnimation(const Matrix* pMatrix)
 		//MATERIAL_CONSTANT
 		{
 			MATERIAL_CONSTANT* pMaterialConstant = (MATERIAL_CONSTANT*)materialContainer[i].pSystemMemAddr;
-			if (pTriGroup->srvContainer[NORMALMAP_SLOT].pSrvResource != nullptr)  pMaterialConstant->useNormalMap = true;
-			else  pMaterialConstant->useNormalMap = false;
+
+			if (pTriGroup->srvContainer[ALBEDO_SLOT].pSrvResource != nullptr) pMaterialConstant->useAlbedoTex = true;
+			else pMaterialConstant->useAlbedoTex = false;
+			if (pTriGroup->srvContainer[AO_SLOT].pSrvResource != nullptr) pMaterialConstant->useAoTex = true;
+			else pMaterialConstant->useAoTex = false;
+			if (pTriGroup->srvContainer[NORMALMAP_SLOT].pSrvResource != nullptr) pMaterialConstant->useNormalTex = true;
+			else pMaterialConstant->useNormalTex = false;
+			if (pTriGroup->srvContainer[METALLIC_SLOT].pSrvResource != nullptr) pMaterialConstant->useMetallicTex = true;
+			else pMaterialConstant->useMetallicTex = false;
+			if (pTriGroup->srvContainer[ROUGHNESS_SLOT].pSrvResource != nullptr)
+			{
+				pMaterialConstant->useRoughnessTex = false;
+				pMaterialConstant->useGlossinessTex = true;
+			}
+			else
+			{
+				pMaterialConstant->useRoughnessTex = false;
+				pMaterialConstant->useGlossinessTex = false;
+			}
+
 			pMaterialConstant->useShadowMap = false;
 			m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, materialContainer[i].CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			cpuDescriptorTable.Offset(1, descriptorSize);
@@ -578,10 +683,13 @@ Model::~Model()
 
 	if (m_srvContainer_CubeMap)
 	{
-		if (m_srvContainer_CubeMap->pSrvResource)
+		for (int i = 0; i < 4; i++)
 		{
-			m_srvContainer_CubeMap->pSrvResource->Release();
-			m_srvContainer_CubeMap->pSrvResource = nullptr;
+			if (m_srvContainer_CubeMap[i].pSrvResource)
+			{
+				m_srvContainer_CubeMap[i].pSrvResource->Release();
+				m_srvContainer_CubeMap[i].pSrvResource = nullptr;
+			}
 		}
 		SafeDeleteArray(&m_srvContainer_CubeMap);
 	}

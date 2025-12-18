@@ -1,5 +1,5 @@
-TextureCube g_textureCube : register(t0);
-SamplerState g_sampler : register(s0);
+#include "Common.hlsl"
+
 
 
 struct PS_INPUT
@@ -11,6 +11,12 @@ struct PS_INPUT
 
 float4 PSMain(PS_INPUT input) : SV_TARGET
 { 
-    float4 color = g_textureCube.Sample(g_sampler, input.worldPos);
-    return color;
+    float3 color = envIBLTex.Sample(wrapSampler, input.worldPos).xyz;
+    
+    float exposure = 1.0f;
+    color *= strengthIBL;
+    color = clamp(color * exposure, 0.0, 1.0);
+    color = pow(color, 1.0 / 2.2);
+
+    return float4(color, 1.0);
 }

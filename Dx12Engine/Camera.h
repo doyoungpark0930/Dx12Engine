@@ -41,10 +41,10 @@ private:
 	// https://en.wikipedia.org/wiki/Aircraft_principal_axes
 	float m_yaw = -0.618501f, m_pitch = -0.0785397f;
 
-	float m_projFovAngleY = pi / 4;
+	float m_projFovAngleY = pi / 3;
 	float m_nearZ = 0.01f;
 	float m_farZ = 300.0f;
-	float m_aspect;
+	float m_aspect; 
 
 	float m_speed = 3.0f;
 };

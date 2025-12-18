@@ -54,7 +54,7 @@ private:
 
 	//srvContainer(MultiMaterial아닌 경우에만 사용)
 	SRV_CONTAINER* m_srvContainer = nullptr;
-	SRV_CONTAINER* m_srvContainer_CubeMap = nullptr;
+	static SRV_CONTAINER* m_srvContainer_CubeMap;
 
 	//MaterialConstant
 	CBV_CONTAINER* materialContainer = nullptr;
