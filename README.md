@@ -52,27 +52,16 @@ OS: Windows 10 이상 (10 미만은 내장 GPU 사용)
 
 • Asset 파이프라인 구축
   - Mixamo, CGTrader, Sketchfab, Unity Asset Store 모델 정규화
-  - Multi-Material 시스템 대응
-  - 자체 포맷으로 Export → Runtime 로딩
+  - Mu용
 
-• Gameplay / Engine Logic
-  - Animation State 제어 및 간단한 공격 로직 구현
-  - Frustum Culling 적용을 통한 렌더링 최적화
+• 자체 포맷 기반 로딩 최적화
+  - 파일 상단(Header)에 Vertex / Index / Texture / Bone 개수 명시
+  - 로딩 시작 시 전체 메모리 요구량을 즉시 산출 가능하도록 설계
+  - 단일 할당 후 포인터 오프셋 방식으로 데이터 배치
 
-## cpu 메모리 관리
-
-스마트 포인터 및 STL 미사용(메모리를 생각하는 습관을 기르기 위한 연습)
-
-C 스타일 메모리 직접 제어로 힙 할당/해제 최소화
-
-종료 시 메모리 누수 없음 확인 완료
-
-디버깅 중 std::string만 제한적으로 사용
-
-자체 포멧 상단에 vertex, index, texture미리 개수 출력하고 로딩 시 메모리 사이즈 확립
-
-불필요한 Bone 제거 및 Vertex/Index 개수를 상단에 기록하여
-엔진 로딩 시 필요 메모리량을 즉시 계산 가능하도록 설계
+  - 불필요한 Bone 제거(사용되지 않는 Bone Cull)
+    · Vertex 가중치 기준으로 실제 사용 Bone만 유지
+    · 스키닝 연산 및 메모리 사용량 감소
 
 ## gpu 버퍼 및 리소스 관리
 
