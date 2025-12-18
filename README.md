@@ -58,6 +58,7 @@ CubeMapping 시 hdr적용 및 톤매핑
 
 PBR적용
 
+프러스텀 컬링 적용
 
 ## cpu 메모리 관리
 
