@@ -29,6 +29,8 @@ OS: Windows 10 이상 (10 미만은 내장 GPU 사용)
         - `Resources\Rumba\Dancing.ani`
         - `Resources\Mixamo\mixamoT.dy`
         - `Resources\Mixamo\leftWalk.ani`
+        - `Resources\Pete\PeteT.dy`
+        - `Resources\Pete\Running.ani`
    2. 파싱 코드
       - 확인 파일: `ModelLoader.cpp`
    3. 디버그 레이어, 루트 시그니처, 버텍스/인덱스 풀, DepthStencilView 생성
@@ -48,7 +50,9 @@ MultiMaterial 시스템 적용
 
 mixamo, cgtrader, sketchfab, Unity asset store등 다양한 사이트에서 모델 다운로드 후 정리 과정을 거친 export
 
-cubemapping
+CubeMapping 시 hdr적용 및 톤매핑 
+
+PBR적용
 
 
 ## cpu 메모리 관리
