@@ -59,6 +59,10 @@ OS: Windows 10 이상 (10 미만은 내장 GPU 사용)
   - Animation State 제어 및 간단한 공격 로직 구현
   - Frustum Culling 적용을 통한 렌더링 최적화
 
+• cpu-gpu 멀티스레딩
+  - overlappedFrames방식으로 context 2개를 활용하여 cpu-gpu병렬처리
+  - 프레임 60~70 => 80~100으로 향상
+
 ## cpu 메모리관리
 • 메모리 관리 및 로딩 구조 설계
   - 스마트 포인터 및 STL 컨테이너 미사용
