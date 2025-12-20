@@ -98,11 +98,10 @@ Pool 기반으로 미리 할당 후 Sub-Allocation 방식으로 연속 관리
 텍스처: Pool 미구현 상태 (현재 CreateCommittedResource 반복 호출 중)
 
 ## 향후 개선 예정
-1) overframedBuffer(cpu - gpu 멀티스레딩 적용)
-2)  다중 오브젝트 렌더링 시 프레임 저하 문제 분석
+1)  다중 오브젝트 렌더링 시 프레임 저하 문제 분석
    => DX12 멀티스레딩 학습 및 적용 예정
-3) PBR 일반 오브젝트 렌더링 시에도 톤매핑 적용
-4) 텍스춰 pool 시스템 구축
+2) PBR 일반 오브젝트 렌더링 시에도 톤매핑 적용
+3) 텍스춰 pool 시스템 구축
 
 포트폴리오 영상 : https://www.youtube.com/watch?v=Pzj5By9eyDg
 
