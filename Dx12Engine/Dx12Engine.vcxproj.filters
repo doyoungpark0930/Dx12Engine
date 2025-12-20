@@ -84,16 +84,16 @@
     <ClCompile Include="CbvManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Animator.cpp">
-      <Filter>ModelLoader</Filter>
-    </ClCompile>
-    <ClCompile Include="Bone.cpp">
-      <Filter>ModelLoader</Filter>
+    <ClCompile Include="Camera.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Animation.cpp">
-      <Filter>ModelLoader</Filter>
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Camera.cpp">
+    <ClCompile Include="Animator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Bone.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -149,20 +149,20 @@
     <ClInclude Include="DirectXMesh.h">
       <Filter>ExternalCode\DirectXMesh</Filter>
     </ClInclude>
-    <ClInclude Include="Bone.h">
-      <Filter>ModelLoader</Filter>
-    </ClInclude>
-    <ClInclude Include="Animation.h">
-      <Filter>ModelLoader</Filter>
-    </ClInclude>
-    <ClInclude Include="Animator.h">
-      <Filter>ModelLoader</Filter>
-    </ClInclude>
     <ClInclude Include="Camera.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ControlHelper.h">
       <Filter>Util</Filter>
+    </ClInclude>
+    <ClInclude Include="Bone.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Animator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Animation.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

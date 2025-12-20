@@ -23,7 +23,6 @@ void MoveCharacter(const float dt, bool const (&keyPressed)[256], ObjectState& o
 		// "현재 front에서 살짝 회전된 방향"으로 이동
 		Vector3 curvedDir = GetRotatedDir(camera.GetFrontDir(), turnRad);
 		objectState.pos += curvedDir * dt * 5.0f;
-		camera.SetEyePos();
 
 	}
 	else if (keyPressed['W'] && keyPressed['A'] && keyPressed[16])
@@ -40,7 +39,6 @@ void MoveCharacter(const float dt, bool const (&keyPressed)[256], ObjectState& o
 		// "현재 front에서 살짝 회전된 방향"으로 이동
 		Vector3 curvedDir = GetRotatedDir(camera.GetFrontDir(), turnRad);
 		objectState.pos += curvedDir * dt * 5.0f;
-		camera.SetEyePos();
 	}
 	else if (keyPressed['W'] && keyPressed['D'] && keyPressed[16])
 	{

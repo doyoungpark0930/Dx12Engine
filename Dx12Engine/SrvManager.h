@@ -41,6 +41,7 @@ private:
 
 	void CreateCommandList();
 	void CreateFence();
-	void WaitForPreviousFrame();
+	void Fence();
+	void WaitForFenceValue();
 
 };

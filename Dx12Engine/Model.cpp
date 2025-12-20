@@ -86,7 +86,8 @@ D3D12_VERTEX_BUFFER_VIEW Model::CreateVertexBuffer(T* vertices, UINT vertexCount
 	ID3D12CommandList* ppCommandLists[] = { m_commandList };
 	m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
-	WaitForPreviousFrame();
+	Fence();
+	WaitForFenceValue();
 
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
 
@@ -128,7 +129,9 @@ D3D12_INDEX_BUFFER_VIEW Model::CreateIndexBuffer(UINT* indices, UINT indiceCount
 
 	ID3D12CommandList* ppCommandLists[] = { m_commandList };
 	m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
-	WaitForPreviousFrame();
+
+	Fence();
+	WaitForFenceValue();
 
 	D3D12_INDEX_BUFFER_VIEW indexBufferView;
 
@@ -648,11 +651,15 @@ void Model::CreateCubeTextureFromName(char* textureFilename, SRV_CONTAINER& srvC
 	}
 }
 
-void Model::WaitForPreviousFrame()
+void Model::Fence()
 {
 	// Signal and increment the fence value.
 	m_fenceValue++;
 	if (FAILED(m_commandQueue->Signal(m_fence, m_fenceValue))) __debugbreak();
+}
+
+void Model::WaitForFenceValue()
+{
 
 	// Wait until the previous frame is finished.
 	if (m_fence->GetCompletedValue() < m_fenceValue)
@@ -677,6 +684,7 @@ void deleteNode(meshNode* node)
 }
 Model::~Model()
 {
+	WaitForFenceValue();
 
 	deleteNode(rootNode);
 	SafeDeleteArray(&materialContainer);

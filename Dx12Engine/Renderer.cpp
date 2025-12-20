@@ -761,7 +761,8 @@ void Renderer::CreateModels()
 		m_animator[1].OnInit(m_animations[1], 1, meshesInfo2.m_defaultTransform);
 		meshesInfo2.finalBoneMatrices = m_animator[1].GetFinalBoneMatrices();
 		m_Models[3].CreateModelFromFile(meshesInfo2);
-	}*/
+	}
+	*/
 
 
 	//CubeMap
@@ -821,7 +822,7 @@ void Renderer::GlobalShadowFrustumUpdate(int contextIndex)
 	if (abs(up.Dot(shadowDirection) + 1.0f) < 1e-5)
 		up = Vector3(1.0f, 0.0f, 0.0f);
 
-	shadowPos = m_ObjectState[0].pos + Vector3(-5.0f, 20.0f, 0.0f);
+	shadowPos = m_ObjectState[0].pos + Vector3(-8.0f, 20.0f, 5.0f);
 	shadowView = XMMatrixLookAtLH(
 		shadowPos, shadowPos + shadowDirection,
 		up);
@@ -839,7 +840,6 @@ void Renderer::GlobalShadowFrustumUpdate(int contextIndex)
 // Update frame-based values.
 void Renderer::Update(float dt)
 {
-
 	IsActionKeyDown = false;
 	for (int i = 0; i < _countof(actionKey); i++)
 	{
@@ -852,8 +852,6 @@ void Renderer::Update(float dt)
 			break;
 		}
 	}
-
-	//camera.SetEyePos();
 
 	AnimType animType = GetAnimationType(camera.IsFirstPersonView);
 	m_animator[0].RequestAnimation(&m_animations[0][(int)animType]);
@@ -903,17 +901,13 @@ void Renderer::Update(float dt)
 		camera.UpdateKeyboard(dt, keyPressed);
 	}
 
-	//camera.SetEyePos();
-	//GlobalConstantUpdate(m_curContextIndex);
-	//GlobalShadowFrustumUpdate(m_curContextIndex);
+	camera.SetEyePos(m_ObjectState[0].pos); 
+	GlobalConstantUpdate(m_curContextIndex);
+	GlobalShadowFrustumUpdate(m_curContextIndex);
 
 	m_ObjectState[0].scale.x = 2.0f;
 	m_ObjectState[0].scale.y = 2.0f;
 	m_ObjectState[0].scale.z = 2.0f;
-	camera.SetCharacterPos(m_ObjectState[0].pos);
-	camera.SetEyePos();
-	GlobalConstantUpdate(m_curContextIndex);
-	GlobalShadowFrustumUpdate(m_curContextIndex);
 
 	m_ObjectState[1].scale.x = 2.0f;
 	m_ObjectState[1].scale.y = 2.0f;
@@ -999,7 +993,7 @@ void Renderer::ObjectRender()
 	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(pCommandList, &object2_Matrix, m_curContextIndex);
 
 	m_Models[3].localAABB.Transform(worldAABB, object5_Matrix);
-	//if (frustum.Intersects(worldAABB)) m_Models[3].DrawAnimation(&object5_Matrix);
+	//if (frustum.Intersects(worldAABB)) m_Models[3].DrawAnimation(pCommandList, &object5_Matrix, m_curContextIndex);
 
 	//Main Render
 	SetMainViewport();
@@ -1028,8 +1022,7 @@ void Renderer::ObjectRender()
 	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(pCommandList, &object2_Matrix, m_curContextIndex);
 
 	m_Models[3].localAABB.Transform(worldAABB, object5_Matrix);
-	//if (frustum.Intersects(worldAABB)) m_Models[3].DrawAnimation(&object5_Matrix);
-
+	//if (frustum.Intersects(worldAABB)) m_Models[3].DrawAnimation(pCommandList, &object5_Matrix, m_curContextIndex);
 
 	//cubemap
 	pCommandList->SetPipelineState(m_cubeMapPSO);
@@ -1063,8 +1056,16 @@ void Renderer::Render()
 
 	// Present the frame.
 	m_swapChain->Present(1, 0);
+	m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
-	WaitForPreviousFrame();
+	Fence();
+
+	// prepare next frame
+	int	nextContextIndex = (m_curContextIndex + 1) % MAX_PENDING_FRAME_COUNT;
+
+	WaitForFenceValue(m_pui64LastFenceValue[nextContextIndex]);
+
+	m_curContextIndex = nextContextIndex;
 }
 
 void Renderer::PopulateCommandList()
@@ -1098,7 +1099,7 @@ void Renderer::PopulateCommandList()
 	if (FAILED(pCommandList->Close())) __debugbreak();
 }
 
-void Renderer::WaitForPreviousFrame()
+void Renderer::Fence()
 {
 	// WAITING FOR THE FRAME TO COMPLETE BEFORE CONTINUING IS NOT BEST PRACTICE.
 	// This is code implemented as such for simplicity. The D3D12HelloFrameBuffering
@@ -1109,25 +1110,25 @@ void Renderer::WaitForPreviousFrame()
 	m_fenceValue++;
 	if (FAILED(m_commandQueue->Signal(m_fence, m_fenceValue))) __debugbreak();
 	m_pui64LastFenceValue[m_curContextIndex] = m_fenceValue;
+}
 
-	// prepare next frame
-	int	nextContextIndex = (m_curContextIndex + 1) % MAX_PENDING_FRAME_COUNT;
-
+void Renderer::WaitForFenceValue(UINT64 ExpectedFenceValue)
+{
 	// Wait until the previous frame is finished.
-	if (m_fence->GetCompletedValue() < m_pui64LastFenceValue[nextContextIndex])
+	if (m_fence->GetCompletedValue() < ExpectedFenceValue)
 	{
-		if (FAILED(m_fence->SetEventOnCompletion(m_pui64LastFenceValue[nextContextIndex], m_fenceEvent))) __debugbreak();
+		if (FAILED(m_fence->SetEventOnCompletion(ExpectedFenceValue, m_fenceEvent))) __debugbreak();
 		WaitForSingleObject(m_fenceEvent, INFINITE);
 	}
-
-	m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
-	m_curContextIndex = nextContextIndex;
 }
 
 
 Renderer::~Renderer()
 {
-	WaitForPreviousFrame();
+	for (int i = 0; i < MAX_PENDING_FRAME_COUNT; i++)
+	{
+		WaitForFenceValue(m_pui64LastFenceValue[i]);
+	}
 
 	CloseHandle(m_fenceEvent);
 	if (m_commandQueue)

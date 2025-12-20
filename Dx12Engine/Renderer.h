@@ -129,6 +129,7 @@ private:
 
 	void LoadAssets();
 	void PopulateCommandList();
-	void WaitForPreviousFrame();
+	void Fence();
+	void WaitForFenceValue(UINT64 ExpectedFenceValue);
 
 };

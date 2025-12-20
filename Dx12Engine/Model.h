@@ -67,7 +67,8 @@ private:
 
 	void CreateCommandList();
 	void CreateFence();
-	void WaitForPreviousFrame();
+	void Fence();
+	void WaitForFenceValue();
 
 	bool m_useNormalMap = false;
 

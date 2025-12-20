@@ -13,8 +13,7 @@ public:
 	void MoveUp(float dt);
 	void MoveRight(float dt);
 
-	void SetCharacterPos(Vector3 Pos);
-	void SetEyePos();
+	void SetEyePos(Vector3 Pos);
 	Vector3 GetFrontDir();
 	Vector3 GetRightDir();
 	Vector3 GetForwardLeftDir();

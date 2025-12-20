@@ -174,7 +174,8 @@ SRV_CONTAINER SrvManager::CreateTexture(const wchar_t* szFileName)
 	ID3D12CommandList* ppCommandLists[] = { m_commandList };
 	m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
-	WaitForPreviousFrame();
+	Fence();
+	WaitForFenceValue();
 
 
 	D3D12_RESOURCE_DESC ddsDesc = m_textures[allocatedNum]->GetDesc();
@@ -253,7 +254,9 @@ SRV_CONTAINER SrvManager::CreateCubemapTexture(const wchar_t* szFileName)
 
 	ID3D12CommandList* lists[] = { m_commandList };
 	m_commandQueue->ExecuteCommandLists(1, lists);
-	WaitForPreviousFrame();
+	
+	Fence();
+	WaitForFenceValue();
 
 	//여기부터 큐브맵 SRV
 	D3D12_RESOURCE_DESC texDesc = m_textures[allocatedNum]->GetDesc();
@@ -286,11 +289,15 @@ SRV_CONTAINER SrvManager::CreateCubemapTexture(const wchar_t* szFileName)
 }
 
 
-void SrvManager::WaitForPreviousFrame()
+void SrvManager::Fence()
 {
 	// Signal and increment the fence value.
 	m_fenceValue++;
 	if (FAILED(m_commandQueue->Signal(m_fence, m_fenceValue))) __debugbreak();
+}
+
+void SrvManager::WaitForFenceValue()
+{
 
 	// Wait until the previous frame is finished.
 	if (m_fence->GetCompletedValue() < m_fenceValue)
@@ -303,6 +310,8 @@ void SrvManager::WaitForPreviousFrame()
 
 SrvManager::~SrvManager()
 {
+	WaitForFenceValue();
+
 	if (m_textureUploadHeap)
 	{
 		m_textureUploadHeap->Release();
