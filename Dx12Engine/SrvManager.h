@@ -21,10 +21,11 @@ private:
 	ID3D12GraphicsCommandList* m_commandList = nullptr;
 	ID3D12CommandAllocator* m_commandAllocator = nullptr;
 	ID3D12CommandQueue* m_commandQueue = nullptr;
+	ID3D12DescriptorHeap* m_dsvHeap = nullptr;
+
 	HANDLE m_fenceEvent;
 	ID3D12Fence* m_fence = nullptr;
-	UINT64* m_fenceValue = nullptr;
-	ID3D12DescriptorHeap* m_dsvHeap = nullptr;
+	UINT64 m_fenceValue;
 
 	UINT descriptorSize = 0;
 	ID3D12Resource* m_textureUploadHeap = nullptr;
@@ -38,7 +39,8 @@ private:
 	int m_shadowWidth = 1280;
 	int m_shadowHeight = 1280;
 
-	void UpdateMember();
+	void CreateCommandList();
+	void CreateFence();
 	void WaitForPreviousFrame();
 
 };

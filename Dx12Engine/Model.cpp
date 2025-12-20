@@ -13,26 +13,44 @@
 using namespace DirectX::SimpleMath;
 
 Renderer* Model::m_renderer = nullptr;
-DescriptorPool* Model::m_descriptorPool = nullptr;
 SrvManager* Model::m_srvManager = nullptr;
 CbvManager* Model::m_cbvManager = nullptr;
 SRV_CONTAINER* Model::m_srvContainer_CubeMap = nullptr;
 Model::Model()
 {
 	m_device = m_renderer->GetDevice();
-	UpdateMembers();
 	descriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
+	m_commandQueue = m_renderer->GetCommandQueue();
+
+	CreateCommandList();
+
+	CreateFence();
 }
 
-void Model::UpdateMembers()
+
+void Model::CreateCommandList()
 {
-	m_commandList = m_renderer->GetCommandList();
-	m_commandAllocator = m_renderer->GetCommandAllocator();
-	m_commandQueue = m_renderer->GetCommandQueue();
-	m_fence = m_renderer->GetFence();
-	m_fenceEvent = m_renderer->GetFenceEvent();
-	m_fenceValue = m_renderer->GetFenceValue();
+	if (FAILED(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator)))) __debugbreak();
+	// Create the command list.
+	if (FAILED(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator, nullptr, IID_PPV_ARGS(&m_commandList)))) __debugbreak();
+
+	// Command lists are created in the recording state, but there is nothing
+	// to record yet. The main loop expects it to be closed, so close it now.
+	if (FAILED(m_commandList->Close()))__debugbreak();
+}
+
+void Model::CreateFence()
+{
+	if (FAILED(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)))) __debugbreak();
+	m_fenceValue = 0;
+
+	// Create an event handle to use for frame synchronization.
+	m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+	if (m_fenceEvent == nullptr)
+	{
+		__debugbreak();
+	}
 }
 
 template <typename T>
@@ -110,7 +128,6 @@ D3D12_INDEX_BUFFER_VIEW Model::CreateIndexBuffer(UINT* indices, UINT indiceCount
 
 	ID3D12CommandList* ppCommandLists[] = { m_commandList };
 	m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
-
 	WaitForPreviousFrame();
 
 	D3D12_INDEX_BUFFER_VIEW indexBufferView;
@@ -142,7 +159,7 @@ void Model::CreateCubeMap(JustMeshData& meshData)
 	{
 		CreateCubeTextureFromName(meshData.irradianceIBL_Filename, m_srvContainer_CubeMap[2]);
 	}
-	if (meshData.brdf_Filename)
+	if (meshData.brdf_Filename) 
 	{
 		CreateTextureFromName(meshData.brdf_Filename, m_srvContainer_CubeMap[3]);
 	}
@@ -249,18 +266,20 @@ void Model::CreateModelFromFile(MeshDataInfo& meshesInfo)
 
 }
 
-void Model::DrawGeneralMesh(const Matrix* pMatrix) //일단 materialNum은 1이라고 가정
+void Model::DrawGeneralMesh(ID3D12GraphicsCommandList* pCommandList, const Matrix* pMatrix, int contextIndex) //일단 materialNum은 1이라고 가정
 {
-	//GlobalConstant
-	CBV_CONTAINER globalContainer = m_cbvManager->GetGlobalContainer();
+	DescriptorPool* pDescriptorPool = m_renderer->GetDescriptorPool(contextIndex);
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE globalCpuHandle(m_descriptorPool->m_descritorHeap->GetCPUDescriptorHandleForHeapStart());
-	CD3DX12_GPU_DESCRIPTOR_HANDLE globalGpuHandle(m_descriptorPool->m_descritorHeap->GetGPUDescriptorHandleForHeapStart());
+	//GlobalConstant
+	CBV_CONTAINER globalContainer = m_cbvManager->GetGlobalContainer(contextIndex);
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE globalCpuHandle(pDescriptorPool->m_descritorHeap->GetCPUDescriptorHandleForHeapStart());
+	CD3DX12_GPU_DESCRIPTOR_HANDLE globalGpuHandle(pDescriptorPool->m_descritorHeap->GetGPUDescriptorHandleForHeapStart());
 	m_device->CopyDescriptorsSimple(1, globalCpuHandle, globalContainer.CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	m_commandList->SetGraphicsRootDescriptorTable(0, globalGpuHandle);
+	pCommandList->SetGraphicsRootDescriptorTable(0, globalGpuHandle);
 
 	//ModelConstant
-	CBV_CONTAINER* cbvContainer = m_cbvManager->GetAllocatedContainer();
+	CBV_CONTAINER* cbvContainer = m_cbvManager->GetAllocatedContainer(contextIndex);
 	MODEL_CONSTANT* pModelConstant = (MODEL_CONSTANT*)cbvContainer->pSystemMemAddr;
 
 	//Model Update
@@ -279,16 +298,16 @@ void Model::DrawGeneralMesh(const Matrix* pMatrix) //일단 materialNum은 1이라고 
 
 	//model행렬(1) + animation(1) + mtlCbv + textures
 	UINT requiredDescriptorCount = 1 + 1 + 1 + MAX_TEXTURE_NUM;
-	m_descriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, requiredDescriptorCount);
+	pDescriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, requiredDescriptorCount);
 
 	m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, cbvContainer->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	m_commandList->SetGraphicsRootDescriptorTable(1, gpuDescriptorTable);
+	pCommandList->SetGraphicsRootDescriptorTable(1, gpuDescriptorTable);
 	//animation 빈 공간띄워주기(animation root signature를 공유해서 사용하기 때문)
 	cpuDescriptorTable.Offset(2, descriptorSize);
 	gpuDescriptorTable.Offset(2, descriptorSize);
 
 
-	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	pCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// shadow map SRV 바인딩 (t8)
 	{
@@ -296,12 +315,12 @@ void Model::DrawGeneralMesh(const Matrix* pMatrix) //일단 materialNum은 1이라고 
 		CD3DX12_GPU_DESCRIPTOR_HANDLE shadowGpu;
 
 		// shadow map용 디스크립터 1개만 할당
-		m_descriptorPool->AllocDescriptorTable(&shadowCpu, &shadowGpu, 1);
+		pDescriptorPool->AllocDescriptorTable(&shadowCpu, &shadowGpu, 1);
 
 		m_device->CopyDescriptorsSimple(1, shadowCpu, m_srvManager->m_srvContainer[0].srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 		// root parameter 4 (t8)
-		m_commandList->SetGraphicsRootDescriptorTable(4, shadowGpu);
+		pCommandList->SetGraphicsRootDescriptorTable(4, shadowGpu);
 	}
 
 	// cube map SRV 바인딩(t15)
@@ -310,7 +329,7 @@ void Model::DrawGeneralMesh(const Matrix* pMatrix) //일단 materialNum은 1이라고 
 		CD3DX12_GPU_DESCRIPTOR_HANDLE cubeMapGpu;
 
 		// shadow map용 디스크립터 1개만 할당
-		m_descriptorPool->AllocDescriptorTable(&cubeMapCpu, &cubeMapGpu, 4);
+		pDescriptorPool->AllocDescriptorTable(&cubeMapCpu, &cubeMapGpu, 4);
 
 		//envIBL / specularIBL / irradianceIBL / brdfIBL
 		for (int i = 0; i < 4; i++)
@@ -326,7 +345,7 @@ void Model::DrawGeneralMesh(const Matrix* pMatrix) //일단 materialNum은 1이라고 
 			}
 		}
 		// root parameter 4 (t5)
-		m_commandList->SetGraphicsRootDescriptorTable(5, cubeMapGpu);
+		pCommandList->SetGraphicsRootDescriptorTable(5, cubeMapGpu);
 	}
 
 	//MATERIAL_CONSTANT
@@ -355,7 +374,7 @@ void Model::DrawGeneralMesh(const Matrix* pMatrix) //일단 materialNum은 1이라고 
 
 		pMaterialConstant->useShadowMap = true;
 		m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, (*materialContainer).CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-		m_commandList->SetGraphicsRootDescriptorTable(2, gpuDescriptorTable);
+		pCommandList->SetGraphicsRootDescriptorTable(2, gpuDescriptorTable);
 		cpuDescriptorTable.Offset(1, descriptorSize);
 		gpuDescriptorTable.Offset(1, descriptorSize);
 	}
@@ -369,26 +388,27 @@ void Model::DrawGeneralMesh(const Matrix* pMatrix) //일단 materialNum은 1이라고 
 		}
 		cpuDescriptorTable.Offset(1, descriptorSize);
 	}
-	m_commandList->SetGraphicsRootDescriptorTable(3, gpuDescriptorTable);
+	pCommandList->SetGraphicsRootDescriptorTable(3, gpuDescriptorTable);
 	gpuDescriptorTable.Offset(MAX_TEXTURE_NUM, descriptorSize);
 
-	m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView[0]);
-	m_commandList->IASetIndexBuffer(&IndexBufferView);
-	m_commandList->DrawIndexedInstanced(indexCnt, 1, 0, 0, 0);
+	pCommandList->IASetVertexBuffers(0, 1, &m_vertexBufferView[0]);
+	pCommandList->IASetIndexBuffer(&IndexBufferView);
+	pCommandList->DrawIndexedInstanced(indexCnt, 1, 0, 0, 0);
 }
 
-void Model::DrawCubeMap(const Matrix* pMatrix)
+void Model::DrawCubeMap(ID3D12GraphicsCommandList* pCommandList, const Matrix* pMatrix,  int contextIndex)
 {
+	DescriptorPool* pDescriptorPool = m_renderer->GetDescriptorPool(contextIndex);
 	//GlobalConstant
-	CBV_CONTAINER globalContainer = m_cbvManager->GetGlobalContainer();
+	CBV_CONTAINER globalContainer = m_cbvManager->GetGlobalContainer(contextIndex);
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE globalCpuHandle(m_descriptorPool->m_descritorHeap->GetCPUDescriptorHandleForHeapStart());
-	CD3DX12_GPU_DESCRIPTOR_HANDLE globalGpuHandle(m_descriptorPool->m_descritorHeap->GetGPUDescriptorHandleForHeapStart());
+	CD3DX12_CPU_DESCRIPTOR_HANDLE globalCpuHandle(pDescriptorPool->m_descritorHeap->GetCPUDescriptorHandleForHeapStart());
+	CD3DX12_GPU_DESCRIPTOR_HANDLE globalGpuHandle(pDescriptorPool->m_descritorHeap->GetGPUDescriptorHandleForHeapStart());
 	m_device->CopyDescriptorsSimple(1, globalCpuHandle, globalContainer.CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	m_commandList->SetGraphicsRootDescriptorTable(0, globalGpuHandle);
+	pCommandList->SetGraphicsRootDescriptorTable(0, globalGpuHandle);
 
 	//ModelConstant
-	CBV_CONTAINER* cbvContainer = m_cbvManager->GetAllocatedContainer();
+	CBV_CONTAINER* cbvContainer = m_cbvManager->GetAllocatedContainer(contextIndex);
 	MODEL_CONSTANT* pModelConstant = (MODEL_CONSTANT*)cbvContainer->pSystemMemAddr;
 
 	//Model Update
@@ -407,15 +427,15 @@ void Model::DrawCubeMap(const Matrix* pMatrix)
 
 	//model행렬(1) + CubeMapTexture(4)
 	UINT requiredDescriptorCount = 5;
-	m_descriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, requiredDescriptorCount);
+	pDescriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, requiredDescriptorCount);
 
 	// modelCBV
 	m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, cbvContainer->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	cpuDescriptorTable.Offset(1, descriptorSize);
-	m_commandList->SetGraphicsRootDescriptorTable(1, gpuDescriptorTable);
+	pCommandList->SetGraphicsRootDescriptorTable(1, gpuDescriptorTable);
 	gpuDescriptorTable.Offset(1, descriptorSize);
 
-	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	pCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	//TEXTURES
 	//envIBL / specularIBL / irradianceIBL / brdfIBL
@@ -432,27 +452,28 @@ void Model::DrawCubeMap(const Matrix* pMatrix)
 		}
 	}
 
-	m_commandList->SetGraphicsRootDescriptorTable(2, gpuDescriptorTable);
+	pCommandList->SetGraphicsRootDescriptorTable(2, gpuDescriptorTable);
 	gpuDescriptorTable.Offset(1, descriptorSize);
 
-	m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView[0]);
-	m_commandList->IASetIndexBuffer(&IndexBufferView);
-	m_commandList->DrawIndexedInstanced(indexCnt, 1, 0, 0, 0);
+	pCommandList->IASetVertexBuffers(0, 1, &m_vertexBufferView[0]);
+	pCommandList->IASetIndexBuffer(&IndexBufferView);
+	pCommandList->DrawIndexedInstanced(indexCnt, 1, 0, 0, 0);
 }
 
-void Model::DrawAnimation(const Matrix* pMatrix)
+void Model::DrawAnimation(ID3D12GraphicsCommandList* pCommandList, const Matrix* pMatrix, int contextIndex)
 {
+	DescriptorPool* pDescriptorPool = m_renderer->GetDescriptorPool(contextIndex);
 	//GlobalConstant
-	CBV_CONTAINER globalContainer = m_cbvManager->GetGlobalContainer();
+	CBV_CONTAINER globalContainer = m_cbvManager->GetGlobalContainer(contextIndex);
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE globalCpuHandle(m_descriptorPool->m_descritorHeap->GetCPUDescriptorHandleForHeapStart());
-	CD3DX12_GPU_DESCRIPTOR_HANDLE globalGpuHandle(m_descriptorPool->m_descritorHeap->GetGPUDescriptorHandleForHeapStart());
+	CD3DX12_CPU_DESCRIPTOR_HANDLE globalCpuHandle(pDescriptorPool->m_descritorHeap->GetCPUDescriptorHandleForHeapStart());
+	CD3DX12_GPU_DESCRIPTOR_HANDLE globalGpuHandle(pDescriptorPool->m_descritorHeap->GetGPUDescriptorHandleForHeapStart());
 	m_device->CopyDescriptorsSimple(1, globalCpuHandle, globalContainer.CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	m_commandList->SetGraphicsRootDescriptorTable(0, globalGpuHandle);
+	pCommandList->SetGraphicsRootDescriptorTable(0, globalGpuHandle);
 
 
 	//ModelConstant
-	CBV_CONTAINER* cbvContainer = m_cbvManager->GetAllocatedContainer();
+	CBV_CONTAINER* cbvContainer = m_cbvManager->GetAllocatedContainer(contextIndex);
 	MODEL_CONSTANT* pModelConstant = (MODEL_CONSTANT*)cbvContainer->pSystemMemAddr;
 
 	//Model Update
@@ -480,7 +501,7 @@ void Model::DrawAnimation(const Matrix* pMatrix)
 
 	//model행렬(1)+ animationMatrices(1) + (mtlCbv + textures) * mtlNum;
 	UINT requiredDescriptorCount = 1 + 1 + m_materialNum * (1 + MAX_TEXTURE_NUM);
-	m_descriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, requiredDescriptorCount);
+	pDescriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, requiredDescriptorCount);
 
 	// modelCBV
 	m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, cbvContainer->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -491,10 +512,10 @@ void Model::DrawAnimation(const Matrix* pMatrix)
 	}
 
 	cpuDescriptorTable.Offset(1, descriptorSize);
-	m_commandList->SetGraphicsRootDescriptorTable(1, gpuDescriptorTable);
+	pCommandList->SetGraphicsRootDescriptorTable(1, gpuDescriptorTable);
 	gpuDescriptorTable.Offset(2, descriptorSize);
 
-	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	pCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 
 	// shadow map SRV 바인딩 (t8)
@@ -503,12 +524,12 @@ void Model::DrawAnimation(const Matrix* pMatrix)
 		CD3DX12_GPU_DESCRIPTOR_HANDLE shadowGpu;
 
 		// shadow map용 디스크립터 1개만 할당
-		m_descriptorPool->AllocDescriptorTable(&shadowCpu, &shadowGpu, 1);
+		pDescriptorPool->AllocDescriptorTable(&shadowCpu, &shadowGpu, 1);
 
 		m_device->CopyDescriptorsSimple(1, shadowCpu, m_srvManager->m_srvContainer[0].srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 		// root parameter 4 (t8)
-		m_commandList->SetGraphicsRootDescriptorTable(4, shadowGpu);
+		pCommandList->SetGraphicsRootDescriptorTable(4, shadowGpu);
 	}
 
 	// cube map SRV 바인딩(t15)
@@ -517,7 +538,7 @@ void Model::DrawAnimation(const Matrix* pMatrix)
 		CD3DX12_GPU_DESCRIPTOR_HANDLE cubeMapGpu;
 
 		// shadow map용 디스크립터 1개만 할당
-		m_descriptorPool->AllocDescriptorTable(&cubeMapCpu, &cubeMapGpu, 4);
+		pDescriptorPool->AllocDescriptorTable(&cubeMapCpu, &cubeMapGpu, 4);
 
 		//envIBL / specularIBL / irradianceIBL / brdfIBL
 		for (int i = 0; i < 4; i++)
@@ -533,7 +554,7 @@ void Model::DrawAnimation(const Matrix* pMatrix)
 			}
 		}
 		// root parameter 4 (t5)
-		m_commandList->SetGraphicsRootDescriptorTable(5, cubeMapGpu);
+		pCommandList->SetGraphicsRootDescriptorTable(5, cubeMapGpu);
 	}
 
 
@@ -568,7 +589,7 @@ void Model::DrawAnimation(const Matrix* pMatrix)
 			pMaterialConstant->useShadowMap = false;
 			m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, materialContainer[i].CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			cpuDescriptorTable.Offset(1, descriptorSize);
-			m_commandList->SetGraphicsRootDescriptorTable(2, gpuDescriptorTable);
+			pCommandList->SetGraphicsRootDescriptorTable(2, gpuDescriptorTable);
 			gpuDescriptorTable.Offset(1, descriptorSize);
 		}
 
@@ -585,7 +606,7 @@ void Model::DrawAnimation(const Matrix* pMatrix)
 				cpuDescriptorTable.Offset(1, descriptorSize); //resource없으면 Descriptor를 빈공간으로
 			}
 		}
-		m_commandList->SetGraphicsRootDescriptorTable(3, gpuDescriptorTable);
+		pCommandList->SetGraphicsRootDescriptorTable(3, gpuDescriptorTable);
 		gpuDescriptorTable.Offset(MAX_TEXTURE_NUM, descriptorSize);
 
 		//Mesh Draw
@@ -593,9 +614,9 @@ void Model::DrawAnimation(const Matrix* pMatrix)
 		{
 			if (pTriGroup->triNum[j] > 0)
 			{
-				m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView[j]);
-				m_commandList->IASetIndexBuffer(&pTriGroup->IndexBufferView[j]);
-				m_commandList->DrawIndexedInstanced(pTriGroup->triNum[j] * 3, 1, 0, 0, 0);
+				pCommandList->IASetVertexBuffers(0, 1, &m_vertexBufferView[j]);
+				pCommandList->IASetIndexBuffer(&pTriGroup->IndexBufferView[j]);
+				pCommandList->DrawIndexedInstanced(pTriGroup->triNum[j] * 3, 1, 0, 0, 0);
 			}
 		}
 	}
@@ -630,14 +651,13 @@ void Model::CreateCubeTextureFromName(char* textureFilename, SRV_CONTAINER& srvC
 void Model::WaitForPreviousFrame()
 {
 	// Signal and increment the fence value.
-	const UINT64 fence = *m_fenceValue;
-	if (FAILED(m_commandQueue->Signal(m_fence, fence))) __debugbreak();
-	(*m_fenceValue)++;
+	m_fenceValue++;
+	if (FAILED(m_commandQueue->Signal(m_fence, m_fenceValue))) __debugbreak();
 
 	// Wait until the previous frame is finished.
-	if (m_fence->GetCompletedValue() < fence)
+	if (m_fence->GetCompletedValue() < m_fenceValue)
 	{
-		if (FAILED(m_fence->SetEventOnCompletion(fence, m_fenceEvent))) __debugbreak();
+		if (FAILED(m_fence->SetEventOnCompletion(m_fenceValue, m_fenceEvent))) __debugbreak();
 		WaitForSingleObject(m_fenceEvent, INFINITE);
 	}
 
@@ -706,6 +726,24 @@ Model::~Model()
 			}
 		}
 		SafeDeleteArray(&m_srvContainer);
+	}
+
+	if (m_commandList)
+	{
+		m_commandList->Release();
+		m_commandList = nullptr;
+	}
+
+	if (m_commandAllocator)
+	{
+		m_commandAllocator->Release();
+		m_commandAllocator = nullptr;
+	}
+
+	if (m_fence)
+	{
+		m_fence->Release();
+		m_fence = nullptr;
 	}
 
 }

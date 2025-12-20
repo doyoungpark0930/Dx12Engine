@@ -6,21 +6,16 @@
 #include "SrvManager.h"
 
 
-void SrvManager::UpdateMember()
-{
-	m_commandList = m_renderer->GetCommandList();
-	m_commandAllocator = m_renderer->GetCommandAllocator();
-	m_commandQueue = m_renderer->GetCommandQueue();
-	m_fence = m_renderer->GetFence();
-	m_fenceEvent = m_renderer->GetFenceEvent();
-	m_fenceValue = m_renderer->GetFenceValue();
-}
 void SrvManager::OnInit(ID3D12Device* pDevice, Renderer* pRenderer)
 {
 	m_device = pDevice;
 	m_renderer = pRenderer;
 
-	UpdateMember();
+	m_commandQueue = m_renderer->GetCommandQueue();
+
+	CreateCommandList();
+
+	CreateFence();
 
 	descriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
@@ -34,9 +29,33 @@ void SrvManager::OnInit(ID3D12Device* pDevice, Renderer* pRenderer)
 	m_textures = new ID3D12Resource * [max_descriptorNum]; //텍스춰를 pool이아닌 중구난방으로 할당하고있긴함=> 메모리 단편화 위험
 
 }
+
+void SrvManager::CreateCommandList()
+{
+	if (FAILED(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator)))) __debugbreak();
+	// Create the command list.
+	if (FAILED(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator, nullptr, IID_PPV_ARGS(&m_commandList)))) __debugbreak();
+
+	// Command lists are created in the recording state, but there is nothing
+	// to record yet. The main loop expects it to be closed, so close it now.
+	if (FAILED(m_commandList->Close()))__debugbreak();
+}
+
+void SrvManager::CreateFence()
+{
+	if (FAILED(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)))) __debugbreak();
+	m_fenceValue = 0;
+
+	// Create an event handle to use for frame synchronization.
+	m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+	if (m_fenceEvent == nullptr)
+	{
+		__debugbreak();
+	}
+}
+
 SRV_CONTAINER SrvManager::CreateShadowMapTexture()
 {
-	UpdateMember();
 
 	D3D12_RESOURCE_DESC textureDesc = {};
 	textureDesc.MipLevels = 1;
@@ -98,7 +117,6 @@ SRV_CONTAINER SrvManager::CreateShadowMapTexture()
 }
 SRV_CONTAINER SrvManager::CreateTexture(const wchar_t* szFileName)
 {
-	UpdateMember();
 
 	bool useDDS;
 	std::unique_ptr<uint8_t[]> Datas;
@@ -184,7 +202,6 @@ SRV_CONTAINER SrvManager::CreateTexture(const wchar_t* szFileName)
 
 SRV_CONTAINER SrvManager::CreateCubemapTexture(const wchar_t* szFileName)
 {
-	UpdateMember();
 
 	std::unique_ptr<uint8_t[]> datas;
 	std::vector<D3D12_SUBRESOURCE_DATA> subresources;
@@ -272,14 +289,13 @@ SRV_CONTAINER SrvManager::CreateCubemapTexture(const wchar_t* szFileName)
 void SrvManager::WaitForPreviousFrame()
 {
 	// Signal and increment the fence value.
-	const UINT64 fence = *m_fenceValue;
-	if (FAILED(m_commandQueue->Signal(m_fence, fence))) __debugbreak();
-	(*m_fenceValue)++;
+	m_fenceValue++;
+	if (FAILED(m_commandQueue->Signal(m_fence, m_fenceValue))) __debugbreak();
 
 	// Wait until the previous frame is finished.
-	if (m_fence->GetCompletedValue() < fence)
+	if (m_fence->GetCompletedValue() < m_fenceValue)
 	{
-		if (FAILED(m_fence->SetEventOnCompletion(fence, m_fenceEvent))) __debugbreak();
+		if (FAILED(m_fence->SetEventOnCompletion(m_fenceValue, m_fenceEvent))) __debugbreak();
 		WaitForSingleObject(m_fenceEvent, INFINITE);
 	}
 
@@ -316,5 +332,23 @@ SrvManager::~SrvManager()
 	{
 		m_dsvHeap->Release();
 		m_dsvHeap = nullptr;
+	}
+
+	if (m_commandList)
+	{
+		m_commandList->Release();
+		m_commandList = nullptr;
+	}
+
+	if (m_commandAllocator)
+	{
+		m_commandAllocator->Release();
+		m_commandAllocator = nullptr;
+	}
+
+	if (m_fence)
+	{
+		m_fence->Release();
+		m_fence = nullptr;
 	}
 }

@@ -11,7 +11,6 @@ class Model
 {
 public:
 	static Renderer* m_renderer;
-	static DescriptorPool* m_descriptorPool;
 	static SrvManager* m_srvManager;
 	static CbvManager* m_cbvManager;
 	void CreateCubeMap(JustMeshData& meshData);
@@ -22,9 +21,9 @@ public:
 	template <typename T>
 	D3D12_VERTEX_BUFFER_VIEW CreateVertexBuffer(T* vertices, UINT vertexCount);
 	D3D12_INDEX_BUFFER_VIEW CreateIndexBuffer(UINT* indices, UINT indiceCount);
-	void DrawGeneralMesh(const Matrix* pMatrix);
-	void DrawCubeMap(const Matrix* pMatrix);
-	void DrawAnimation(const Matrix* pMatrix);
+	void DrawGeneralMesh(ID3D12GraphicsCommandList* pCommandList, const Matrix* pMatrix, int contextIndex);
+	void DrawCubeMap(ID3D12GraphicsCommandList* pCommandList, const Matrix* pMatrix, int contextIndex);
+	void DrawAnimation(ID3D12GraphicsCommandList* pCommandList, const Matrix* pMatrix, int contextIndex);
 	Model();
 	~Model();
 
@@ -36,9 +35,10 @@ private:
 	ID3D12GraphicsCommandList* m_commandList = nullptr;
 	ID3D12CommandAllocator* m_commandAllocator = nullptr;
 	ID3D12CommandQueue* m_commandQueue = nullptr;
+
 	HANDLE m_fenceEvent;
 	ID3D12Fence* m_fence = nullptr;
-	UINT64* m_fenceValue = nullptr;
+	UINT64 m_fenceValue;
 
 	UINT descriptorSize;
 
@@ -65,8 +65,8 @@ private:
 	Matrix* m_FinalBoneMatrices = nullptr;
 	Animation* m_animations = nullptr;
 
-
-	void UpdateMembers();
+	void CreateCommandList();
+	void CreateFence();
 	void WaitForPreviousFrame();
 
 	bool m_useNormalMap = false;

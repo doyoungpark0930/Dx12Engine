@@ -50,8 +50,9 @@ Matrix Camera::GetProjRow() {
 	return XMMatrixPerspectiveFovLH(m_projFovAngleY, m_aspect, m_nearZ, m_farZ);
 }
 
-void Camera::UpdateKeyboard(const float dt, bool const (&keyPressed)[256]) {
-
+void Camera::UpdateKeyboard(const float dt, bool const (&keyPressed)[256]) 
+{
+	
 	if (!IsFirstPersonView)
 	{
 		if (keyPressed['W'])

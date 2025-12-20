@@ -192,18 +192,19 @@ float4 PSMain(PS_INPUT input) : SV_TARGET
     float3 albedo = useAlbedoTex ? albedoTex.Sample(wrapSampler, input.uv).rgb * albedoFactor
                                  : albedoFactor;
     float ao = useAoTex ? aoTex.Sample(wrapSampler, input.uv).rgb * aoFactor : aoFactor;
-    float metallic = useMetallicTex ? metallicTex.Sample(wrapSampler, input.uv).rgb * metallicFactor
-                                    : metallicFactor;
-    metallic = 0.0f;
-    float roughness = useRoughnessTex ? roughnessTex.Sample(wrapSampler, input.uv).rgb * roughnessFactor :
-                       useGlossinessTex ? 1 - roughnessTex.Sample(wrapSampler, input.uv).rgb * roughnessFactor :
+    float metallic = 0.0f;
+    metallic = useRoughnessTex ? roughnessTex.Sample(wrapSampler, input.uv).b * metallicFactor
+                                    : 0.0f;
+    //metallic = 0.0f;
+    float roughness = useRoughnessTex ? roughnessTex.Sample(wrapSampler, input.uv).g * roughnessFactor :
+                       useGlossinessTex ? 1 - roughnessTex.Sample(wrapSampler, input.uv).r * roughnessFactor :
                         1.0f;
 
     
-    float3 ambientLighting = AmbientLightingByIBL(albedo, normalWorld, pixelToEye, ao, 0.0, roughness) * strengthIBL;
-    ambientLighting += albedo * 0.3f; //너무어두워서 좀 넣어줌
+    float3 ambientLighting = AmbientLightingByIBL(albedo, normalWorld, pixelToEye, ao, metallic, roughness) * strengthIBL;
+    ambientLighting += albedo * 0.5f; //너무어두워서 좀 넣어줌
     float3 directLighting = 0.0;
-    
+    metallic *= 0.1f;
     [unroll] 
     for (int i = 0; i < 1; ++i) //적분대신 모든 광원에 대하여 한번 씩 돌음
     {
@@ -239,10 +240,8 @@ float4 PSMain(PS_INPUT input) : SV_TARGET
         
     }
     
-    
-    
+     
     float4 color = float4(ambientLighting * 0.4 + directLighting * 2.0, 1.0);
     
-    //color.rgb = pow(color.rgb, 1.0 / 2.2);
     return color;
 }

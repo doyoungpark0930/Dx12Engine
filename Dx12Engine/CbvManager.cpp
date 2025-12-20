@@ -9,16 +9,12 @@ void CbvManager::OnInit(ID3D12Device* pDevice, Renderer* pRenderer)
 {
 	m_device = pDevice;
 	m_renderer = pRenderer;
-
-	m_cbvContainer = new CBV_CONTAINER[max_descriptorNum + 1];
 	descriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	//globalConstant / constant1 / constant2 / ..
-	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc = {};
-	cbvHeapDesc.NumDescriptors = 1 + max_descriptorNum; //1은 globalConstant자리
-	cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	if (FAILED(m_device->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&m_descritorHeap)))) __debugbreak();
+	for(int i = 0 ; i < MAX_PENDING_FRAME_COUNT ; i++) //반드시 정리하기
+	{
+		CreateGeneralConstantBufferPool(i);
+	}
 
 	//MaterialCBV Init
 	{
@@ -49,6 +45,18 @@ void CbvManager::OnInit(ID3D12Device* pDevice, Renderer* pRenderer)
 
 		CreateAnimationBufferPool();
 	}
+}
+
+void CbvManager::CreateGeneralConstantBufferPool(int i)
+{
+	m_cbvContainer[i] = new CBV_CONTAINER[max_descriptorNum + 1];
+
+	//globalConstant / constant1 / constant2 / ..
+	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc = {};
+	cbvHeapDesc.NumDescriptors = 1 + max_descriptorNum; //1은 globalConstant자리
+	cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	if (FAILED(m_device->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&m_descritorHeap[i])))) __debugbreak();
 
 	UINT constantMemory = Align(sizeof(GLOBAL_CONSTANT), 256) + Align(sizeof(MODEL_CONSTANT), 256) * max_descriptorNum;
 	CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
@@ -60,75 +68,76 @@ void CbvManager::OnInit(ID3D12Device* pDevice, Renderer* pRenderer)
 		&resDesc,
 		D3D12_RESOURCE_STATE_GENERIC_READ,
 		nullptr,
-		IID_PPV_ARGS(&m_constantUploadBufferPool))))__debugbreak();
+		IID_PPV_ARGS(&m_constantUploadBufferPool[i]))))__debugbreak();
 
 	void* pData;
 	CD3DX12_RANGE readRange(0, 0);
-	m_constantUploadBufferPool->Map(0, &readRange, &pData);
-	m_constantCur = m_constantBegin = reinterpret_cast<UINT8*>(pData);
-	m_constantEnd = m_constantBegin + constantMemory;
+	m_constantUploadBufferPool[i]->Map(0, &readRange, &pData);
+	m_constantCur[i] = m_constantBegin[i] = reinterpret_cast<UINT8*>(pData);
+	m_constantEnd[i] = m_constantBegin[i] + constantMemory;
 
 	UINT CbvCnt = 0;
 	//첫 디스크립터 자리는 globalConstant자리
 	UINT globalOffset = 0;
 	if (FAILED(
 		SetDataToUploadBuffer(
-			&m_constantCur,
-			m_constantBegin,
-			m_constantEnd,
+			&m_constantCur[i],
+			m_constantBegin[i],
+			m_constantEnd[i],
 			nullptr, sizeof(GLOBAL_CONSTANT), 1,
 			256,
 			globalOffset
 		)))__debugbreak();
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE cbvHandle(m_descritorHeap->GetCPUDescriptorHandleForHeapStart());
+	CD3DX12_CPU_DESCRIPTOR_HANDLE cbvHandle(m_descritorHeap[i]->GetCPUDescriptorHandleForHeapStart());
 
 	D3D12_CONSTANT_BUFFER_VIEW_DESC globalDesc = {};
-	globalDesc.BufferLocation = m_constantUploadBufferPool->GetGPUVirtualAddress() + globalOffset;
+	globalDesc.BufferLocation = m_constantUploadBufferPool[i]->GetGPUVirtualAddress() + globalOffset;
 	globalDesc.SizeInBytes = Align(sizeof(GLOBAL_CONSTANT), 256);
 	m_device->CreateConstantBufferView(&globalDesc, cbvHandle);
 
-	m_cbvContainer[0].pSystemMemAddr = m_constantBegin + globalOffset;
-	m_cbvContainer[0].CBVHandle = cbvHandle;
+	m_cbvContainer[i][0].pSystemMemAddr = m_constantBegin[i] + globalOffset;
+	m_cbvContainer[i][0].CBVHandle = cbvHandle;
 
 	cbvHandle.Offset(1, descriptorSize);
 	CbvCnt = 1;
 
 	//modelConstant
-	for (int i = 0; i < max_descriptorNum; i++)
+	for (int j = 0; j < max_descriptorNum; j++)
 	{
 		UINT constantOffset = 0;
 		if (FAILED(
 			SetDataToUploadBuffer(
-				&m_constantCur,
-				m_constantBegin,
-				m_constantEnd,
+				&m_constantCur[i],
+				m_constantBegin[i],
+				m_constantEnd[i],
 				nullptr, sizeof(MODEL_CONSTANT), 1,
 				256,
 				constantOffset
 			)))__debugbreak();
 
 		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-		cbvDesc.BufferLocation = m_constantUploadBufferPool->GetGPUVirtualAddress() + constantOffset;
+		cbvDesc.BufferLocation = m_constantUploadBufferPool[i]->GetGPUVirtualAddress() + constantOffset;
 		cbvDesc.SizeInBytes = Align(sizeof(MODEL_CONSTANT), 256);
 		m_device->CreateConstantBufferView(&cbvDesc, cbvHandle);
 
-		m_cbvContainer[i + 1].pSystemMemAddr = m_constantBegin + constantOffset;
-		m_cbvContainer[i + 1].CBVHandle = cbvHandle;
+		m_cbvContainer[i][j + 1].pSystemMemAddr = m_constantBegin[i] + constantOffset;
+		m_cbvContainer[i][j + 1].CBVHandle = cbvHandle;
 
 		cbvHandle.Offset(1, descriptorSize);
 		CbvCnt++;
 	}
 }
-CBV_CONTAINER* CbvManager::GetAllocatedContainer()
+
+CBV_CONTAINER* CbvManager::GetAllocatedContainer(int contextIndex)
 {
-	return &m_cbvContainer[allocatedCbvNum++];
+	return &m_cbvContainer[contextIndex][allocatedCbvNum[contextIndex]++];
 }
 
 
-void CbvManager::Reset()
+void CbvManager::Reset(int contextIndex)
 {
-	allocatedCbvNum = 1; //첫 디스크립터 자리 globalConstant
+	allocatedCbvNum[contextIndex] = 1; //첫 디스크립터 자리 globalConstant
 }
 
 void CbvManager::CreateMaterialBufferPool()
@@ -236,15 +245,19 @@ CBV_CONTAINER* CbvManager::AllocAnimationMatrices()
 
 CbvManager::~CbvManager()
 {
-	if (m_constantUploadBufferPool)
+	for (int i = 0; i < MAX_PENDING_FRAME_COUNT; i++)
 	{
-		m_constantUploadBufferPool->Release();
-		m_constantUploadBufferPool = nullptr;
-	}
-	if (m_descritorHeap)
-	{
-		m_descritorHeap->Release();
-		m_descritorHeap = nullptr;
+		if (m_constantUploadBufferPool[i])
+		{
+			m_constantUploadBufferPool[i]->Release();
+			m_constantUploadBufferPool[i] = nullptr;
+		}
+		if (m_descritorHeap[i])
+		{
+			m_descritorHeap[i]->Release();
+			m_descritorHeap[i] = nullptr;
+		}
+		SafeDeleteArray(&m_cbvContainer[i]);
 	}
 
 	if (m_materialConstantUploadBufferPool)
@@ -269,7 +282,6 @@ CbvManager::~CbvManager()
 		m_animationDescritorHeap->Release();
 		m_animationDescritorHeap = nullptr;
 	}
-	SafeDeleteArray(&m_cbvContainer);
 	SafeDeleteArray(&m_animationContainer);
 	SafeDeleteArray(&m_materialContainer);
 }

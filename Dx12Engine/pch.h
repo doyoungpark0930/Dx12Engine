@@ -1,5 +1,6 @@
 #pragma once
 
+
 #include <windows.h>
 #include <stdio.h>
 #include <crtdbg.h>
@@ -17,6 +18,8 @@
 #include "CommonStructs.h"
 
 #define pi 3.141592
+const UINT SWAP_CHAIN_FRAME_COUNT = 3;
+const UINT MAX_PENDING_FRAME_COUNT = SWAP_CHAIN_FRAME_COUNT - 1;
 
 //메모리 누수 생겼을 때, 할당된 메모리의 출처(파일, 라인 번호)를 Output에 띄워주도록함
 #ifdef _DEBUG

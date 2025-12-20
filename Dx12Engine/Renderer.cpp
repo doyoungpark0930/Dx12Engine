@@ -132,7 +132,7 @@ void Renderer::OnInit()
 
 	// Describe and create the swap chain.
 	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-	swapChainDesc.BufferCount = FrameCount;
+	swapChainDesc.BufferCount = SWAP_CHAIN_FRAME_COUNT;
 	swapChainDesc.Width = clientWidth;
 	swapChainDesc.Height = clientHeight;
 	swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -157,7 +157,7 @@ void Renderer::OnInit()
 	{
 		// Describe and create a render target view (RTV) descriptor heap.
 		D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
-		rtvHeapDesc.NumDescriptors = FrameCount;
+		rtvHeapDesc.NumDescriptors = SWAP_CHAIN_FRAME_COUNT;
 		rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 		rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 		if (FAILED(m_device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_rtvHeap)))) __debugbreak();
@@ -171,9 +171,11 @@ void Renderer::OnInit()
 
 		m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-		//cbv,srv는 descriptorPool에서 관리
-		m_descriptorPool = new DescriptorPool();
-		m_descriptorPool->OnInit(m_device, maxObjectsNum);
+		for (int i = 0; i < MAX_PENDING_FRAME_COUNT; i++)
+		{
+			m_ppDescriptorPool[i] = new DescriptorPool();
+			m_ppDescriptorPool[i]->OnInit(m_device, maxObjectsNum);
+		}
 
 		m_srvManager = new SrvManager();
 		m_srvManager->OnInit(m_device, this);
@@ -190,7 +192,7 @@ void Renderer::OnInit()
 		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
 
 		// Create a RTV for each frame.
-		for (UINT n = 0; n < FrameCount; n++)
+		for (UINT n = 0; n < SWAP_CHAIN_FRAME_COUNT; n++)
 		{
 			//renderTarget에 백버퍼의 리소스를 할당
 			if (FAILED(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n]))));
@@ -199,8 +201,18 @@ void Renderer::OnInit()
 		}
 	}
 
+	for (int i = 0; i < MAX_PENDING_FRAME_COUNT; i++)
+	{
+		if (FAILED(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_ppCommandAllocator[i])))) __debugbreak();
 
-	if (FAILED(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator)))) __debugbreak();
+		// Create the command list.
+		if (FAILED(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_ppCommandAllocator[i], nullptr, IID_PPV_ARGS(&m_ppCommandList[i])))) __debugbreak();
+
+		// Command lists are created in the recording state, but there is nothing
+		// to record yet. The main loop expects it to be closed, so close it now.
+		if (FAILED(m_ppCommandList[i]->Close()))__debugbreak();
+	}
+
 
 	LoadAssets();
 
@@ -241,17 +253,10 @@ void Renderer::LoadAssets()
 	CreateRootSignature();
 	CreatePipelineState();
 
-	// Create the command list.
-	if (FAILED(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator, nullptr, IID_PPV_ARGS(&m_commandList)))) __debugbreak();
-
-	// Command lists are created in the recording state, but there is nothing
-	// to record yet. The main loop expects it to be closed, so close it now.
-	if (FAILED(m_commandList->Close()))__debugbreak();
-
 	// Create synchronization objects.
 	{
 		if (FAILED(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)))) __debugbreak();
-		m_fenceValue = 1;
+		m_fenceValue = 0;
 
 		// Create an event handle to use for frame synchronization.
 		m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -267,7 +272,7 @@ void Renderer::LoadAssets()
 
 	Create_Vertex_Index();
 
-	GlobalConstantUpdate();
+	GlobalConstantUpdate(m_curContextIndex);
 
 
 
@@ -295,7 +300,7 @@ void Renderer::CreateRootSignature()
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
 	D3D12_STATIC_SAMPLER_DESC Samplers[3];
-	 
+
 	//Samplers[0].Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
 	Samplers[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
 	Samplers[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
@@ -358,7 +363,7 @@ void Renderer::CreateRootSignature()
 
 		CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc;
 		rootSignatureDesc.Init_1_1(_countof(rootParameters), rootParameters, _countof(Samplers), Samplers, rootSignatureFlags);
-		 
+
 		ID3DBlob* signature = nullptr;
 		ID3DBlob* error = nullptr;
 
@@ -638,7 +643,6 @@ void Renderer::CreateDepthStencil()
 void Renderer::CreateObjects()
 {
 	Model::m_renderer = this;
-	Model::m_descriptorPool = m_descriptorPool;
 	Model::m_srvManager = m_srvManager;
 	Model::m_cbvManager = m_cbvManager;
 
@@ -758,16 +762,16 @@ void Renderer::CreateModels()
 		meshesInfo2.finalBoneMatrices = m_animator[1].GetFinalBoneMatrices();
 		m_Models[3].CreateModelFromFile(meshesInfo2);
 	}*/
-	
+
 
 	//CubeMap
-	char* envIBLPath = MakeFilePath(DXUtil::m_assetsResourcesPath, "Cubemap\\HDRI\\Mountain\\","mountainEnvHDR.dds");
+	char* envIBLPath = MakeFilePath(DXUtil::m_assetsResourcesPath, "Cubemap\\HDRI\\Mountain\\", "mountainEnvHDR.dds");
 	char* specularIBLPath = MakeFilePath(DXUtil::m_assetsResourcesPath, "Cubemap\\HDRI\\Mountain\\", "mountainSpecularHDR.dds");
 	char* irradianceIBLPath = MakeFilePath(DXUtil::m_assetsResourcesPath, "Cubemap\\HDRI\\Mountain\\", "mountainDiffuseHDR.dds");
 	char* brdfPath = MakeFilePath(DXUtil::m_assetsResourcesPath, "Cubemap\\HDRI\\Mountain\\", "mountainBrdf.dds");
 	JustMeshData cubeMapping = GeometryGenerator::MakeBox(50.0f);
 	ReverseIndices(cubeMapping.indices, cubeMapping.indicesNum);
-	cubeMapping.envIBL_Filename = envIBLPath; 
+	cubeMapping.envIBL_Filename = envIBLPath;
 	cubeMapping.specularIBL_Filename = specularIBLPath;
 	cubeMapping.irradianceIBL_Filename = irradianceIBLPath;
 	cubeMapping.brdf_Filename = brdfPath;
@@ -797,9 +801,9 @@ void Renderer::CreateModels()
 
 }
 
-void Renderer::GlobalConstantUpdate()
+void Renderer::GlobalConstantUpdate(int contextIndex)
 {
-	GLOBAL_CONSTANT* globalConstant = (GLOBAL_CONSTANT*)(m_cbvManager->GetStartCBV() + 0);
+	GLOBAL_CONSTANT* globalConstant = (GLOBAL_CONSTANT*)(m_cbvManager->GetStartCBV(contextIndex) + 0);
 	View = camera.GetViewRow();
 	Proj = camera.GetProjRow();
 	invView = View.Invert();
@@ -810,7 +814,7 @@ void Renderer::GlobalConstantUpdate()
 	globalConstant->strengthIBL = 0.15f;
 }
 
-void Renderer::GlobalShadowFrustumUpdate()
+void Renderer::GlobalShadowFrustumUpdate(int contextIndex)
 {
 	shadowDirection.Normalize();
 	Vector3 up = Vector3(0.0f, 1.0f, 0.0f);
@@ -826,7 +830,7 @@ void Renderer::GlobalShadowFrustumUpdate()
 
 	shadowProj = XMMatrixOrthographicLH(40.0f, 40.0f, 1.0f, 30.0f);
 
-	GLOBAL_CONSTANT* globalConstant = (GLOBAL_CONSTANT*)(m_cbvManager->GetStartCBV() + 0);
+	GLOBAL_CONSTANT* globalConstant = (GLOBAL_CONSTANT*)(m_cbvManager->GetStartCBV(contextIndex) + 0);
 	globalConstant->shadowFrustum.viewProj = (shadowView * shadowProj).Transpose();
 	globalConstant->shadowFrustum.position = Vector4(shadowPos.x, shadowPos.y, shadowPos.z, 1.0f);
 	globalConstant->shadowFrustum.direction = Vector4(shadowDirection.x, shadowDirection.y, shadowDirection.z, 0.0f);
@@ -835,10 +839,7 @@ void Renderer::GlobalShadowFrustumUpdate()
 // Update frame-based values.
 void Renderer::Update(float dt)
 {
-	if (dt <= 0.0f)
-		return;
 
-	m_animator[1].UpdateAnimation(dt);
 	IsActionKeyDown = false;
 	for (int i = 0; i < _countof(actionKey); i++)
 	{
@@ -852,12 +853,13 @@ void Renderer::Update(float dt)
 		}
 	}
 
-	camera.SetEyePos();
+	//camera.SetEyePos();
 
 	AnimType animType = GetAnimationType(camera.IsFirstPersonView);
 	m_animator[0].RequestAnimation(&m_animations[0][(int)animType]);
 
 	m_animator[0].UpdateAnimation(dt);
+	m_animator[1].UpdateAnimation(dt); //sci_fi_girl
 
 	if (camera.IsFirstPersonView)
 	{
@@ -901,13 +903,17 @@ void Renderer::Update(float dt)
 		camera.UpdateKeyboard(dt, keyPressed);
 	}
 
-	GlobalShadowFrustumUpdate();
-	GlobalConstantUpdate();
+	//camera.SetEyePos();
+	//GlobalConstantUpdate(m_curContextIndex);
+	//GlobalShadowFrustumUpdate(m_curContextIndex);
 
 	m_ObjectState[0].scale.x = 2.0f;
 	m_ObjectState[0].scale.y = 2.0f;
 	m_ObjectState[0].scale.z = 2.0f;
 	camera.SetCharacterPos(m_ObjectState[0].pos);
+	camera.SetEyePos();
+	GlobalConstantUpdate(m_curContextIndex);
+	GlobalShadowFrustumUpdate(m_curContextIndex);
 
 	m_ObjectState[1].scale.x = 2.0f;
 	m_ObjectState[1].scale.y = 2.0f;
@@ -970,68 +976,70 @@ void Renderer::ObjectRender()
 	BoundingFrustum::CreateFromMatrix(frustum, Proj);
 	frustum.Transform(frustum, invView); //model*view*proj에서 model에 바로 frustum적용하기 위함
 
+	ID3D12GraphicsCommandList* pCommandList = m_ppCommandList[m_curContextIndex];
+
 	//ShadowMapping Render
 	SetShadowViewport();
-	m_commandList->RSSetViewports(1, &m_shadowViewport);
-	m_commandList->RSSetScissorRects(1, &m_shadowScissorRect);
+	pCommandList->RSSetViewports(1, &m_shadowViewport);
+	pCommandList->RSSetScissorRects(1, &m_shadowScissorRect);
 
-	m_commandList->SetPipelineState(m_DepthOnlyAnimationPSO);
-	m_commandList->SetGraphicsRootSignature(m_rootSignature_General);
+	pCommandList->SetPipelineState(m_DepthOnlyAnimationPSO);
+	pCommandList->SetGraphicsRootSignature(m_rootSignature_General);
 
-	m_commandList->OMSetRenderTargets(0, nullptr, FALSE, &m_shadowMapSrvContainer.dsvHandle);
-	m_commandList->ClearDepthStencilView(m_shadowMapSrvContainer.dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+	pCommandList->OMSetRenderTargets(0, nullptr, FALSE, &m_shadowMapSrvContainer.dsvHandle);
+	pCommandList->ClearDepthStencilView(m_shadowMapSrvContainer.dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 	m_Models[0].localAABB.Transform(worldAABB, object0_Matrix);
-	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(&object0_Matrix);
+	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(pCommandList, &object0_Matrix, m_curContextIndex);
 
 	m_Models[0].localAABB.Transform(worldAABB, object1_Matrix);
-	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(&object1_Matrix);
+	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(pCommandList, &object1_Matrix, m_curContextIndex);
 
 	m_Models[0].localAABB.Transform(worldAABB, object2_Matrix);
-	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(&object2_Matrix);
+	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(pCommandList, &object2_Matrix, m_curContextIndex);
 
 	m_Models[3].localAABB.Transform(worldAABB, object5_Matrix);
 	//if (frustum.Intersects(worldAABB)) m_Models[3].DrawAnimation(&object5_Matrix);
 
 	//Main Render
 	SetMainViewport();
-	m_commandList->RSSetViewports(1, &m_viewport);
-	m_commandList->RSSetScissorRects(1, &m_scissorRect);
+	pCommandList->RSSetViewports(1, &m_viewport);
+	pCommandList->RSSetScissorRects(1, &m_scissorRect);
 
-	m_commandList->SetPipelineState(m_animationPSO);
-	m_commandList->SetGraphicsRootSignature(m_rootSignature_General);
+	pCommandList->SetPipelineState(m_animationPSO);
+	pCommandList->SetGraphicsRootSignature(m_rootSignature_General);
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
 	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
-	m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+	pCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
 	// Record commands.
 	const float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
-	m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-	m_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+	pCommandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+	pCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 	m_Models[0].localAABB.Transform(worldAABB, object0_Matrix);
-	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(&object0_Matrix);
+	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(pCommandList, &object0_Matrix, m_curContextIndex);
 
 	m_Models[0].localAABB.Transform(worldAABB, object1_Matrix);
-	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(&object1_Matrix);
+	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(pCommandList, &object1_Matrix, m_curContextIndex);
 
 	m_Models[0].localAABB.Transform(worldAABB, object2_Matrix);
-	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(&object2_Matrix);
+	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(pCommandList, &object2_Matrix, m_curContextIndex);
 
 	m_Models[3].localAABB.Transform(worldAABB, object5_Matrix);
 	//if (frustum.Intersects(worldAABB)) m_Models[3].DrawAnimation(&object5_Matrix);
 
 
 	//cubemap
-	m_commandList->SetPipelineState(m_cubeMapPSO);
-	m_commandList->SetGraphicsRootSignature(m_rootSignature_CubeMap);
-	m_Models[1].DrawCubeMap(&object3_Matrix);
+	pCommandList->SetPipelineState(m_cubeMapPSO);
+	pCommandList->SetGraphicsRootSignature(m_rootSignature_CubeMap);
+	m_Models[1].DrawCubeMap(pCommandList, &object3_Matrix, m_curContextIndex);
 
 	//ground
-	m_commandList->SetPipelineState(m_GeneralPSO);
-	m_commandList->SetGraphicsRootSignature(m_rootSignature_General);
-	m_Models[2].DrawGeneralMesh(&object4_Matrix);
+	pCommandList->SetPipelineState(m_GeneralPSO);
+	pCommandList->SetGraphicsRootSignature(m_rootSignature_General);
+	m_Models[2].DrawGeneralMesh(pCommandList, &object4_Matrix, m_curContextIndex);
 
 	//square
 	//m_Models[4].DrawGeneralMesh(&object6_Matrix);
@@ -1040,48 +1048,54 @@ void Renderer::ObjectRender()
 // Render the scene.
 void Renderer::Render()
 {
-	m_descriptorPool->Reset();
-	m_cbvManager->Reset();
+	//printf("contexIndex : %d\n", m_curContextIndex);
+	m_ppDescriptorPool[m_curContextIndex]->Reset();
+	m_cbvManager->Reset(m_curContextIndex);
 
 	// Record all the commands we need to render the scene into the command list.
 	PopulateCommandList();
 
+	ID3D12GraphicsCommandList* pCommandList = m_ppCommandList[m_curContextIndex];
 	// Execute the command list.
-	ID3D12CommandList* ppCommandLists[] = { m_commandList };
+	ID3D12CommandList* ppCommandLists[] = { pCommandList };
 	m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
 
 	// Present the frame.
 	m_swapChain->Present(1, 0);
+
 	WaitForPreviousFrame();
 }
 
 void Renderer::PopulateCommandList()
 {
+	ID3D12CommandAllocator* pCommandAllocator = m_ppCommandAllocator[m_curContextIndex];
+	ID3D12GraphicsCommandList* pCommandList = m_ppCommandList[m_curContextIndex];
+
 	// Command list allocators can only be reset when the associated 
 	// command lists have finished execution on the GPU; apps should use 
 	// fences to determine GPU execution progress.
-	if (FAILED(m_commandAllocator->Reset())) __debugbreak();
+	if (FAILED(pCommandAllocator->Reset())) __debugbreak();
 
 	// However, when ExecuteCommandList() is called on a particular command 
 	// list, that command list can then be reset at any time and must be before 
 	// re-recording.
-	if (FAILED(m_commandList->Reset(m_commandAllocator, nullptr))) __debugbreak();
+	if (FAILED(pCommandList->Reset(pCommandAllocator, nullptr))) __debugbreak();
 
-	ID3D12DescriptorHeap* ppHeaps[] = { m_descriptorPool->m_descritorHeap };
-	m_commandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+	ID3D12DescriptorHeap* ppHeaps[] = { m_ppDescriptorPool[m_curContextIndex]->m_descritorHeap};
+	pCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
 	CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
 	// Indicate that the back buffer will be used as a render target.
-	m_commandList->ResourceBarrier(1, &barrier);
+	pCommandList->ResourceBarrier(1, &barrier);
 
 	ObjectRender();
 
 	barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-	m_commandList->ResourceBarrier(1, &barrier);
+	pCommandList->ResourceBarrier(1, &barrier);
 
-	if (FAILED(m_commandList->Close())) __debugbreak();
+	if (FAILED(pCommandList->Close())) __debugbreak();
 }
 
 void Renderer::WaitForPreviousFrame()
@@ -1092,24 +1106,29 @@ void Renderer::WaitForPreviousFrame()
 	// maximize GPU utilization.
 
 	// Signal and increment the fence value.
-	const UINT64 fence = m_fenceValue;
-	if (FAILED(m_commandQueue->Signal(m_fence, fence))) __debugbreak();
 	m_fenceValue++;
+	if (FAILED(m_commandQueue->Signal(m_fence, m_fenceValue))) __debugbreak();
+	m_pui64LastFenceValue[m_curContextIndex] = m_fenceValue;
+
+	// prepare next frame
+	int	nextContextIndex = (m_curContextIndex + 1) % MAX_PENDING_FRAME_COUNT;
 
 	// Wait until the previous frame is finished.
-	if (m_fence->GetCompletedValue() < fence)
+	if (m_fence->GetCompletedValue() < m_pui64LastFenceValue[nextContextIndex])
 	{
-		if (FAILED(m_fence->SetEventOnCompletion(fence, m_fenceEvent))) __debugbreak();
+		if (FAILED(m_fence->SetEventOnCompletion(m_pui64LastFenceValue[nextContextIndex], m_fenceEvent))) __debugbreak();
 		WaitForSingleObject(m_fenceEvent, INFINITE);
 	}
 
 	m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
+	m_curContextIndex = nextContextIndex;
 }
 
 
 Renderer::~Renderer()
 {
 	WaitForPreviousFrame();
+
 	CloseHandle(m_fenceEvent);
 	if (m_commandQueue)
 	{
@@ -1135,11 +1154,27 @@ Renderer::~Renderer()
 		m_dsvHeap = nullptr;
 	}
 
-	if (m_descriptorPool)
+	for (int i = 0; i < MAX_PENDING_FRAME_COUNT; i++)
 	{
-		delete m_descriptorPool;
-		m_descriptorPool = nullptr;
+		if (m_ppDescriptorPool[i])
+		{
+			delete m_ppDescriptorPool[i];
+			m_ppDescriptorPool[i] = nullptr;
+		}
+		if (m_ppCommandList[i])
+		{
+			m_ppCommandList[i]->Release();
+			m_ppCommandList[i] = nullptr;
+		}
+
+		if (m_ppCommandAllocator[i])
+		{
+			m_ppCommandAllocator[i]->Release();
+			m_ppCommandAllocator[i] = nullptr;
+		}
+
 	}
+
 
 	if (m_srvManager)
 	{
@@ -1153,11 +1188,6 @@ Renderer::~Renderer()
 		m_cbvManager = nullptr;
 	}
 
-	if (m_commandAllocator)
-	{
-		m_commandAllocator->Release();
-		m_commandAllocator = nullptr;
-	}
 
 	if (m_animationPSO)
 	{
@@ -1188,7 +1218,7 @@ Renderer::~Renderer()
 		m_DepthOnlyGeneralPSO->Release();
 		m_DepthOnlyGeneralPSO = nullptr;
 	}
-	for (int i = 0; i < FrameCount; i++)
+	for (int i = 0; i < SWAP_CHAIN_FRAME_COUNT; i++)
 	{
 		if (m_renderTargets[i])
 		{
@@ -1220,12 +1250,6 @@ Renderer::~Renderer()
 	{
 		m_shadowMapSrvContainer.pSrvResource->Release();
 		m_shadowMapSrvContainer.pSrvResource = nullptr;
-	}
-
-	if (m_commandList)
-	{
-		m_commandList->Release();
-		m_commandList = nullptr;
 	}
 
 	if (m_fence)

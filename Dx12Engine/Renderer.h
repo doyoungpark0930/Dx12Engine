@@ -1,5 +1,6 @@
 #pragma once
 
+
 class Model;
 class DescriptorPool;
 class SrvManager;
@@ -20,13 +21,8 @@ public:
 	FLOAT GetAspect() const { return aspect; }
 
 	ID3D12Device* GetDevice() const { return m_device; }
-	ID3D12GraphicsCommandList* GetCommandList() const { return m_commandList; }
-	ID3D12CommandAllocator* GetCommandAllocator() const { return m_commandAllocator; }
 	ID3D12CommandQueue* GetCommandQueue() const { return m_commandQueue; }
-	DescriptorPool* GetDescriptorPool() const { return m_descriptorPool; }
-	ID3D12Fence* GetFence() const { return m_fence; }
-	HANDLE GetFenceEvent() const { return m_fenceEvent; }
-	UINT64* GetFenceValue() { return &m_fenceValue; }
+	DescriptorPool* GetDescriptorPool(int n) const { return m_ppDescriptorPool[n]; }
 
 	ID3D12Resource* m_vsBufferPool = nullptr;
 	ID3D12Resource* m_vsUploadBufferPool = nullptr;
@@ -47,7 +43,6 @@ public:
 	~Renderer();
 
 private:
-	static const UINT FrameCount = 2;
 
 	void CreateRootSignature();
 	void CreatePipelineState();
@@ -55,8 +50,8 @@ private:
 	void CreateObjects();
 	void Create_Vertex_Index();
 	void CreateModels();
-	void GlobalConstantUpdate();
-	void GlobalShadowFrustumUpdate();
+	void GlobalConstantUpdate(int contextIndex);
+	void GlobalShadowFrustumUpdate(int contextIndex);
 
 	UINT clientWidth;
 	UINT clientHeight;
@@ -72,10 +67,15 @@ private:
 	D3D12_RECT m_shadowScissorRect;
 	IDXGISwapChain3* m_swapChain = nullptr;
 	ID3D12Device* m_device = nullptr;
-	ID3D12Resource* m_renderTargets[FrameCount] = {};
 	ID3D12Resource* m_depthStencil = nullptr;
-	ID3D12CommandAllocator* m_commandAllocator = nullptr;
 	ID3D12CommandQueue* m_commandQueue = nullptr;
+
+	ID3D12Resource* m_renderTargets[SWAP_CHAIN_FRAME_COUNT] = {};
+	ID3D12GraphicsCommandList* m_ppCommandList[MAX_PENDING_FRAME_COUNT] = {};
+	ID3D12CommandAllocator* m_ppCommandAllocator[MAX_PENDING_FRAME_COUNT] = {};
+	DescriptorPool* m_ppDescriptorPool[MAX_PENDING_FRAME_COUNT] = {};
+
+
 	ID3D12RootSignature* m_rootSignature_General = nullptr;
 	ID3D12RootSignature* m_rootSignature_CubeMap = nullptr;
 	ID3D12DescriptorHeap* m_rtvHeap = nullptr;
@@ -85,8 +85,6 @@ private:
 	ID3D12PipelineState* m_GeneralPSO = nullptr;
 	ID3D12PipelineState* m_DepthOnlyGeneralPSO = nullptr;
 	ID3D12PipelineState* m_DepthOnlyAnimationPSO = nullptr;
-	ID3D12GraphicsCommandList* m_commandList = nullptr;
-	DescriptorPool* m_descriptorPool = nullptr;
 	SrvManager* m_srvManager = nullptr;
 	CbvManager* m_cbvManager = nullptr;
 	UINT m_rtvDescriptorSize;
@@ -95,7 +93,9 @@ private:
 	UINT m_frameIndex;
 	HANDLE m_fenceEvent;
 	ID3D12Fence* m_fence;
+	UINT64	m_pui64LastFenceValue[MAX_PENDING_FRAME_COUNT] = {};
 	UINT64 m_fenceValue;
+	UINT m_curContextIndex = 0;
 
 	SRV_CONTAINER m_shadowMapSrvContainer;
 
@@ -122,7 +122,7 @@ private:
 	Vector4 lightPos = Vector4(-80.0f, 40.0f, 80.0f, 1.0f);
 
 	Vector3 shadowPos;
-	Vector3 shadowDirection = Vector3(3.0f, -5.0f, -1.0f);
+	Vector3 shadowDirection = Vector3(6.0f, -5.0f, -5.0f);
 
 	bool IsActionKeyDown = false;
 	char actionKey[32];

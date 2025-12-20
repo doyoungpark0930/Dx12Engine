@@ -6,16 +6,16 @@ class CbvManager
 {
 public:
 	CbvManager() = default;
-	ID3D12DescriptorHeap* m_descritorHeap = nullptr;
+	ID3D12DescriptorHeap* m_descritorHeap[MAX_PENDING_FRAME_COUNT] = {};
 	ID3D12DescriptorHeap* m_materialDescritorHeap = nullptr;
 	ID3D12DescriptorHeap* m_animationDescritorHeap = nullptr;
 	void OnInit(ID3D12Device* pDevice, Renderer* pRenderer);
-	void Reset();
-	CBV_CONTAINER GetGlobalContainer() const { return m_cbvContainer[0]; }
-	CBV_CONTAINER* GetAllocatedContainer();
+	void Reset(int contextIndex);
+	CBV_CONTAINER GetGlobalContainer(int contextIndex) const { return m_cbvContainer[contextIndex][0]; }
+	CBV_CONTAINER* GetAllocatedContainer(int contextIndex);
 	CBV_CONTAINER AllocMaterialCBV();
 	CBV_CONTAINER* AllocAnimationMatrices();
-	UINT8* GetStartCBV() const { return m_constantBegin; }
+	UINT8* GetStartCBV(int n) const { return m_constantBegin[n]; }
 	~CbvManager();
 
 
@@ -23,9 +23,9 @@ public:
 private:
 	ID3D12Device* m_device = nullptr;
 	Renderer* m_renderer = nullptr;
-	CBV_CONTAINER* m_cbvContainer = nullptr;
+	CBV_CONTAINER* m_cbvContainer[MAX_PENDING_FRAME_COUNT] = {};
 
-	void UpdateMember();
+	void CreateGeneralConstantBufferPool(int i);
 	void CreateAnimationBufferPool();
 	void CreateMaterialBufferPool();
 
@@ -33,11 +33,11 @@ private:
 	const UINT max_descriptorNum = 128;
 
 	//global, model Constant
-	ID3D12Resource* m_constantUploadBufferPool = nullptr;
-	UINT8* m_constantBegin = nullptr;    // starting position of upload buffer
-	UINT8* m_constantCur = nullptr;      // current position of upload buffer
-	UINT8* m_constantEnd = nullptr;      // ending position of upload buffer
-	UINT allocatedCbvNum = 1;
+	ID3D12Resource* m_constantUploadBufferPool[MAX_PENDING_FRAME_COUNT] = {};
+	UINT8* m_constantBegin[MAX_PENDING_FRAME_COUNT] = {};   // starting position of upload buffer
+	UINT8* m_constantCur[MAX_PENDING_FRAME_COUNT] = {};      // current position of upload buffer
+	UINT8* m_constantEnd[MAX_PENDING_FRAME_COUNT] = {};      // ending position of upload buffer
+	UINT allocatedCbvNum[MAX_PENDING_FRAME_COUNT] = { 1,1 };
 
 	//Material Constant
 	ID3D12Resource* m_materialConstantUploadBufferPool = nullptr;
