@@ -48,7 +48,6 @@ OS: Windows 10 이상 (10 미만은 내장 GPU 사용)
 • 3ds Max Export Plug-in 제작
   - Mesh / Animation 분리된 자체 포맷 설계
   - Skeletal Animation Skinning 구현
-  - Animation 간 Blending 및 변환 로직 구현
 
 • Asset 파이프라인 구축
   - Mixamo, CGTrader, Sketchfab, Unity Asset Store 모델 정규화
@@ -58,8 +57,9 @@ OS: Windows 10 이상 (10 미만은 내장 GPU 사용)
 • Gameplay / Engine Logic
   - Animation State 제어 및 간단한 공격 로직 구현
   - Frustum Culling 적용을 통한 렌더링 최적화
+  - Animation 간 Blending 및 변환 로직 구현
 
-• cpu-gpu 멀티스레딩
+• cpu-gpu 병렬처리
   - overlappedFrames방식으로 context 2개를 활용하여 cpu-gpu병렬처리
   - 프레임 60-70 => 80-100으로 향상
 
