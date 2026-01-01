@@ -65,9 +65,9 @@ OS: Windows 10 이상 (10 미만은 내장 GPU 사용)
 
 ## cpu 메모리관리
 • 메모리 관리 및 로딩 구조 설계
-  - 스마트 포인터 및 STL 컨테이너 미사용
+  - 메모리 흐름을 명확히 이해하기 위해 new/delete로 메모리 직접 제어
     
-    · 메모리 흐름을 명확히 이해하기 위한 의도적 선택
+    · 메모리를 생각하는 연습을 하기위한 의도적인 선택
     
     · new/delete 및 C 스타일 메모리 직접 제어
 
@@ -81,8 +81,6 @@ OS: Windows 10 이상 (10 미만은 내장 GPU 사용)
     
     · CRT Debug Heap 및 런타임 검증 완료
 
-  - std::string은 디버깅 용도로만 제한적 사용
-  - 해쉬는 std::unorderd_map 사용
 
 • 자체 포맷 기반 로딩 최적화
   - 파일 상단(Header)에 Vertex / Index / Texture / Bone 개수 명시
