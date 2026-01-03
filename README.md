@@ -104,33 +104,6 @@ OS: Windows 10 이상 (10 미만은 내장 GPU 사용)
   - 불필요한 Bone 제거(사용되지 않는 Bone Cull)
     · Vertex 가중치 기준으로 실제 사용 Bone만 유지
     · 스키닝 연산 및 메모리 사용량 감소
-    
-## gpu 버퍼 및 리소스 관리
-Vertex / Index / ConstantBuffer:
-Pool 기반으로 미리 할당 후 Sub-Allocation 방식으로 연속 관리
-
-그래픽스 학습 블로그 Asset 파이프라인 구축
-  - Mixamo, CGTrader, Sketchfab, Unity Asset Store 모델 정규화
-  - Multi-Material 시스템 대응
-  - 자체 포맷으로 Export → Runtime 로딩
-
-• Gameplay / Engine Logic
-  - Animation State 제어 및 간단한 공격 로직 구현
-  - Frustum Culling 적용을 통한 렌더링 최적화
-  - Animation 간 Blending 및 변환 로직 구현
-
-• cpu-gpu 병렬처리
-  - overlappedFrames방식으로 context 2개를 활용하여 cpu-gpu병렬처리
-  - 프레임 60-70 => 80-100으로 향상
-
-• CPU 병목 제거
-  - 불필요한 바인딩 제거 (pix 프로파일링 도구 이용)
-  - 쉐도우패스와 렌더패스 사이의 wait제거
-  - 프레임 약 40% 향상
-
-• 멀티스레딩
-  - 캐릭터를 150번 draw함으로써 프레임 약 30% 향상
-  - cpu및 gpu 사용량 각각 70%, 25% 증가
 
 ## cpu 메모리관리
 • 메모리 관리 및 로딩 구조 설계
