@@ -108,6 +108,7 @@ struct CBV_CONTAINER
 {
 	UINT8* pSystemMemAddr;
 	D3D12_CPU_DESCRIPTOR_HANDLE	CBVHandle;
+	UINT64 GVA;
 };
 
 struct meshNode

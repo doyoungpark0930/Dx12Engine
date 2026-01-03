@@ -3,7 +3,7 @@
 class Renderer;
 class DescriptorPool;
 class SrvManager;
-class CbvManger;
+class CbvManager;
 class Animation;
 
 
@@ -21,9 +21,10 @@ public:
 	template <typename T>
 	D3D12_VERTEX_BUFFER_VIEW CreateVertexBuffer(T* vertices, UINT vertexCount);
 	D3D12_INDEX_BUFFER_VIEW CreateIndexBuffer(UINT* indices, UINT indiceCount);
-	void DrawGeneralMesh(ID3D12GraphicsCommandList* pCommandList, const Matrix* pMatrix, int contextIndex);
-	void DrawCubeMap(ID3D12GraphicsCommandList* pCommandList, const Matrix* pMatrix, int contextIndex);
-	void DrawAnimation(ID3D12GraphicsCommandList* pCommandList, const Matrix* pMatrix, int contextIndex);
+	void PreBinding(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, PASS_STATE passState);
+	void DrawGeneralMesh(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, const Matrix* pMatrix);
+	void DrawCubeMap(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, const Matrix* pMatrix);
+	void DrawAnimation(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, const Matrix* pMatrix);
 	Model();
 	~Model();
 

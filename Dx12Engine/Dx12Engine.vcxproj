@@ -141,19 +141,24 @@
     <ClCompile Include="Bone.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="CbvManager.cpp" />
+    <ClCompile Include="CommandListPool.cpp" />
     <ClCompile Include="DDSTextureLoader12.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="DescriptorPool.cpp" />
     <ClCompile Include="DXUtil.cpp" />
     <ClCompile Include="GeometryGenerator.cpp" />
+    <ClCompile Include="LinkedList.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ModelLoader.cpp" />
     <ClCompile Include="Model.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="ProcessorInfo.cpp" />
     <ClCompile Include="Renderer.cpp" />
+    <ClCompile Include="RenderQueue.cpp" />
+    <ClCompile Include="RenderThread.cpp" />
     <ClCompile Include="SrvManager.cpp" />
     <ClCompile Include="WICTextureLoader12.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -166,6 +171,7 @@
     <ClInclude Include="Bone.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="CbvManager.h" />
+    <ClInclude Include="CommandListPool.h" />
     <ClInclude Include="ControlHelper.h" />
     <ClInclude Include="DDSTextureLoader12.h" />
     <ClInclude Include="DescriptorPool.h" />
@@ -173,12 +179,16 @@
     <ClInclude Include="DXHelper.h" />
     <ClInclude Include="DXUtil.h" />
     <ClInclude Include="GeometryGenerator.h" />
+    <ClInclude Include="LinkedList.h" />
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="ModelLoader.h" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="ProcessorInfo.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="CommonStructs.h" />
+    <ClInclude Include="RenderQueue.h" />
+    <ClInclude Include="RenderThread.h" />
     <ClInclude Include="SimpleMath.h" />
     <ClInclude Include="SrvManager.h" />
     <ClInclude Include="WICTextureLoader12.h" />

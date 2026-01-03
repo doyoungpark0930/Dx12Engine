@@ -1,4 +1,110 @@
-﻿  Renderer.cpp
+﻿  pch.cpp
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\DXHelper.h(44,24): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
+  (compiling source file 'pch.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\DXHelper.h(75,31): warning C4244: '=': conversion from '__int64' to 'int', possible loss of data
+  (compiling source file 'pch.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\CommonStructs.h(177,21): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file 'pch.cpp')
+  
+  Animation.cpp
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Animation.h(16,47): warning C4244: 'return': conversion from 'int' to 'float', possible loss of data
+  (compiling source file '/Animation.cpp')
+  
+  Animator.cpp
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Animation.h(16,47): warning C4244: 'return': conversion from 'int' to 'float', possible loss of data
+  (compiling source file '/Animator.cpp')
+  
+  Bone.cpp
+  Camera.cpp
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Camera.h(43,29): warning C4305: 'initializing': truncation from 'double' to 'float'
+  (compiling source file '/Camera.cpp')
+  
+  CbvManager.cpp
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\CbvManager.cpp(64,22): warning C4244: 'initializing': conversion from 'SIZE_T' to 'UINT', possible loss of data
+  (compiling source file '/CbvManager.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\CbvManager.cpp(99,32): warning C4244: '=': conversion from 'SIZE_T' to 'UINT', possible loss of data
+  (compiling source file '/CbvManager.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\CbvManager.cpp(109,20): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/CbvManager.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\CbvManager.cpp(124,30): warning C4244: '=': conversion from 'SIZE_T' to 'UINT', possible loss of data
+  (compiling source file '/CbvManager.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\CbvManager.cpp(150,22): warning C4244: 'initializing': conversion from 'SIZE_T' to 'UINT', possible loss of data
+  (compiling source file '/CbvManager.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\CbvManager.cpp(185,29): warning C4244: '=': conversion from 'SIZE_T' to 'UINT', possible loss of data
+  (compiling source file '/CbvManager.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\CbvManager.cpp(201,22): warning C4244: 'initializing': conversion from 'SIZE_T' to 'UINT', possible loss of data
+  (compiling source file '/CbvManager.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\CbvManager.cpp(237,29): warning C4244: '=': conversion from 'SIZE_T' to 'UINT', possible loss of data
+  (compiling source file '/CbvManager.cpp')
+  
+  CommandListPool.cpp
+  DXUtil.cpp
+  DescriptorPool.cpp
+  GeometryGenerator.cpp
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\GeometryGenerator.cpp(40,20): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/GeometryGenerator.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\GeometryGenerator.cpp(41,21): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/GeometryGenerator.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\GeometryGenerator.cpp(55,20): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/GeometryGenerator.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\GeometryGenerator.cpp(56,21): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/GeometryGenerator.cpp')
+  
+  LinkedList.cpp
+  Model.cpp
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Animation.h(16,47): warning C4244: 'return': conversion from 'int' to 'float', possible loss of data
+  (compiling source file '/Model.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Model.cpp(217,20): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/Model.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Model.cpp(233,21): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/Model.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Model.cpp(244,20): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/Model.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Model.cpp(252,20): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/Model.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Model.cpp(636,20): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/Model.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Model.cpp(671,21): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/Model.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Model.cpp(747,20): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/Model.cpp')
+  
+  ModelLoader.cpp
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Animation.h(16,47): warning C4244: 'return': conversion from 'int' to 'float', possible loss of data
+  (compiling source file '/ModelLoader.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\ModelLoader.cpp(83,24): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/ModelLoader.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\ModelLoader.cpp(91,23): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/ModelLoader.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\ModelLoader.cpp(100,25): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/ModelLoader.cpp')
+  
+  ProcessorInfo.cpp
+  RenderQueue.cpp
+  RenderThread.cpp
+  Renderer.cpp
 C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Camera.h(43,29): warning C4305: 'initializing': truncation from 'double' to 'float'
   (compiling source file '/Renderer.cpp')
   
@@ -11,19 +117,62 @@ C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\ControlHelper.h(95,33): warni
 C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Animation.h(16,47): warning C4244: 'return': conversion from 'int' to 'float', possible loss of data
   (compiling source file '/Renderer.cpp')
   
-C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(55,27): warning C4244: '=': conversion from 'int' to 'FLOAT', possible loss of data
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(60,27): warning C4244: '=': conversion from 'int' to 'FLOAT', possible loss of data
   (compiling source file '/Renderer.cpp')
   
-C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(56,28): warning C4244: '=': conversion from 'int' to 'FLOAT', possible loss of data
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(61,28): warning C4244: '=': conversion from 'int' to 'FLOAT', possible loss of data
   (compiling source file '/Renderer.cpp')
   
-C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(198,77): warning C4390: ';': empty controlled statement found; is this the intent?
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(197,21): warning C4018: '<': signed/unsigned mismatch
   (compiling source file '/Renderer.cpp')
   
-C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(887,21): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(205,22): warning C4018: '<': signed/unsigned mismatch
   (compiling source file '/Renderer.cpp')
   
-C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(931,35): warning C4305: '=': truncation from 'double' to 'float'
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(231,77): warning C4390: ';': empty controlled statement found; is this the intent?
   (compiling source file '/Renderer.cpp')
   
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(838,20): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/Renderer.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(866,20): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/Renderer.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(923,21): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+  (compiling source file '/Renderer.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(992,35): warning C4305: '=': truncation from 'double' to 'float'
+  (compiling source file '/Renderer.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(1115,20): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/Renderer.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(1121,20): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/Renderer.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Renderer.cpp(1159,20): warning C4018: '<': signed/unsigned mismatch
+  (compiling source file '/Renderer.cpp')
+  
+  SrvManager.cpp
+  WinApp.cpp
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\Camera.h(43,29): warning C4305: 'initializing': truncation from 'double' to 'float'
+  (compiling source file '/WinApp.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\WinApp.cpp(43,40): warning C4838: conversion from 'UINT' to 'LONG' requires a narrowing conversion
+  (compiling source file '/WinApp.cpp')
+  
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\WinApp.cpp(43,65): warning C4838: conversion from 'UINT' to 'LONG' requires a narrowing conversion
+  (compiling source file '/WinApp.cpp')
+  
+  main.cpp
+C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\main.cpp(26,29): warning C4297: 'WinMain': function assumed not to throw an exception but does
+  (compiling source file '/main.cpp')
+      C:\Users\Lenovo\source\repos\Dx12Engine\Dx12Engine\main.cpp(26,29):
+      __declspec(nothrow), throw(), noexcept(true), or noexcept was specified on the function
+  
+  Generating Code...
+  DDSTextureLoader12.cpp
+  WICTextureLoader12.cpp
+  Generating Code...
+     Creating library C:\Users\Lenovo\source\repos\Dx12Engine\x64\Debug\Dx12Engine.lib and object C:\Users\Lenovo\source\repos\Dx12Engine\x64\Debug\Dx12Engine.exp
   Dx12Engine.vcxproj -> C:\Users\Lenovo\source\repos\Dx12Engine\x64\Debug\Dx12Engine.exe

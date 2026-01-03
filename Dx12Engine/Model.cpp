@@ -162,7 +162,7 @@ void Model::CreateCubeMap(JustMeshData& meshData)
 	{
 		CreateCubeTextureFromName(meshData.irradianceIBL_Filename, m_srvContainer_CubeMap[2]);
 	}
-	if (meshData.brdf_Filename) 
+	if (meshData.brdf_Filename)
 	{
 		CreateTextureFromName(meshData.brdf_Filename, m_srvContainer_CubeMap[3]);
 	}
@@ -269,20 +269,110 @@ void Model::CreateModelFromFile(MeshDataInfo& meshesInfo)
 
 }
 
-void Model::DrawGeneralMesh(ID3D12GraphicsCommandList* pCommandList, const Matrix* pMatrix, int contextIndex) //일단 materialNum은 1이라고 가정
+void Model::PreBinding(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, PASS_STATE passState)
 {
-	DescriptorPool* pDescriptorPool = m_renderer->GetDescriptorPool(contextIndex);
+	DescriptorPool* pDescriptorPool = m_renderer->GetDescriptorPool(threadIndex);
+	if (passState == SHADOW_PASS)
+	{
+		pCommandList->SetPipelineState(m_renderer->GetPsoDepthOnlyAnimation());
+	}
+	else
+	{
+		pCommandList->SetPipelineState(m_renderer->GetPsoAnimation());
+	}
+	pCommandList->SetGraphicsRootSignature(m_renderer->GetRootSignatureGeneral());
+	ID3D12DescriptorHeap* pDescriptorHeap = { pDescriptorPool->m_descritorHeap };
+	pCommandList->SetDescriptorHeaps(1, &pDescriptorHeap);
+
+
+	if (passState == RENDER_PASS)
+	{
+
+		// shadow map SRV 바인딩 (t8)
+		{
+			CD3DX12_CPU_DESCRIPTOR_HANDLE shadowCpu;
+			CD3DX12_GPU_DESCRIPTOR_HANDLE shadowGpu;
+
+			// shadow map용 디스크립터 1개만 할당
+			pDescriptorPool->AllocDescriptorTable(&shadowCpu, &shadowGpu, 1);
+
+			m_device->CopyDescriptorsSimple(1, shadowCpu, m_srvManager->m_srvContainer[0].srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+			// root parameter 4 (t8)
+			pCommandList->SetGraphicsRootDescriptorTable(4, shadowGpu);
+		}
+
+		// cube map SRV 바인딩(t15)
+		{
+			CD3DX12_CPU_DESCRIPTOR_HANDLE cubeMapCpu;
+			CD3DX12_GPU_DESCRIPTOR_HANDLE cubeMapGpu;
+
+			// shadow map용 디스크립터 1개만 할당
+			pDescriptorPool->AllocDescriptorTable(&cubeMapCpu, &cubeMapGpu, 4);
+
+			//envIBL / specularIBL / irradianceIBL / brdfIBL
+			for (int i = 0; i < 4; i++)
+			{
+				if (m_srvContainer_CubeMap[i].pSrvResource)
+				{
+					m_device->CopyDescriptorsSimple(1, cubeMapCpu, m_srvContainer_CubeMap[i].srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+					cubeMapCpu.Offset(1, descriptorSize);
+				}
+				else
+				{
+					cubeMapGpu.Offset(1, descriptorSize); //resource없으면 Descriptor를 빈공간으로
+				}
+			}
+			// root parameter 4 (t5)
+			pCommandList->SetGraphicsRootDescriptorTable(5, cubeMapGpu);
+		}
+
+
+		CD3DX12_GPU_DESCRIPTOR_HANDLE gpuDescriptorTable = {};
+		CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable = {};
+		pDescriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, 5);
+		//TEXTURES
+		for (int j = 0; j < MAX_TEXTURE_NUM; j++)
+		{
+			if (m_TriGroupList[0].srvContainer[j].pSrvResource != nullptr)
+			{
+				m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, m_TriGroupList[0].srvContainer[j].srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				cpuDescriptorTable.Offset(1, descriptorSize);
+			}
+			else
+			{
+				cpuDescriptorTable.Offset(1, descriptorSize); //resource없으면 Descriptor를 빈공간으로
+			}
+		}
+
+		pCommandList->SetGraphicsRootDescriptorTable(3, gpuDescriptorTable);
+	}
+
+
+}
+
+
+void Model::DrawGeneralMesh(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, const Matrix* pMatrix) //일단 materialNum은 1이라고 가정
+{
+	int contextIndex = m_renderer->GetContextIndex();
+	DescriptorPool* pDescriptorPool = m_renderer->GetDescriptorPool(threadIndex);
+
+	// set RootSignature
+	pCommandList->SetPipelineState(m_renderer->GetPsoGeneral());
+	pCommandList->SetGraphicsRootSignature(m_renderer->GetRootSignatureGeneral());
+	ID3D12DescriptorHeap* pDescriptorHeap = { pDescriptorPool->m_descritorHeap };
+	pCommandList->SetDescriptorHeaps(1, &pDescriptorHeap);
 
 	//GlobalConstant
-	CBV_CONTAINER globalContainer = m_cbvManager->GetGlobalContainer(contextIndex);
+	CBV_CONTAINER globalContainer = m_cbvManager->GetGlobalContainer(contextIndex, threadIndex);
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE globalCpuHandle(pDescriptorPool->m_descritorHeap->GetCPUDescriptorHandleForHeapStart());
 	CD3DX12_GPU_DESCRIPTOR_HANDLE globalGpuHandle(pDescriptorPool->m_descritorHeap->GetGPUDescriptorHandleForHeapStart());
 	m_device->CopyDescriptorsSimple(1, globalCpuHandle, globalContainer.CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	pCommandList->SetGraphicsRootDescriptorTable(0, globalGpuHandle);
-
+	//pCommandList->SetGraphicsRootConstantBufferView
 	//ModelConstant
-	CBV_CONTAINER* cbvContainer = m_cbvManager->GetAllocatedContainer(contextIndex);
+	CBV_CONTAINER* cbvContainer = m_cbvManager->GetAllocatedContainer(contextIndex, threadIndex);
 	MODEL_CONSTANT* pModelConstant = (MODEL_CONSTANT*)cbvContainer->pSystemMemAddr;
 
 	//Model Update
@@ -305,6 +395,9 @@ void Model::DrawGeneralMesh(ID3D12GraphicsCommandList* pCommandList, const Matri
 
 	m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, cbvContainer->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	pCommandList->SetGraphicsRootDescriptorTable(1, gpuDescriptorTable);
+
+	//pCommandList->SetGraphicsRootConstantBufferView(1, cbvContainer->GVA);
+
 	//animation 빈 공간띄워주기(animation root signature를 공유해서 사용하기 때문)
 	cpuDescriptorTable.Offset(2, descriptorSize);
 	gpuDescriptorTable.Offset(2, descriptorSize);
@@ -377,6 +470,7 @@ void Model::DrawGeneralMesh(ID3D12GraphicsCommandList* pCommandList, const Matri
 
 		pMaterialConstant->useShadowMap = true;
 		m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, (*materialContainer).CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
 		pCommandList->SetGraphicsRootDescriptorTable(2, gpuDescriptorTable);
 		cpuDescriptorTable.Offset(1, descriptorSize);
 		gpuDescriptorTable.Offset(1, descriptorSize);
@@ -388,6 +482,7 @@ void Model::DrawGeneralMesh(ID3D12GraphicsCommandList* pCommandList, const Matri
 		if (m_srvContainer[j].pSrvResource != nullptr)
 		{
 			m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, m_srvContainer[j].srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
 		}
 		cpuDescriptorTable.Offset(1, descriptorSize);
 	}
@@ -399,11 +494,19 @@ void Model::DrawGeneralMesh(ID3D12GraphicsCommandList* pCommandList, const Matri
 	pCommandList->DrawIndexedInstanced(indexCnt, 1, 0, 0, 0);
 }
 
-void Model::DrawCubeMap(ID3D12GraphicsCommandList* pCommandList, const Matrix* pMatrix,  int contextIndex)
+void Model::DrawCubeMap(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, const Matrix* pMatrix)
 {
-	DescriptorPool* pDescriptorPool = m_renderer->GetDescriptorPool(contextIndex);
+	int contextIndex = m_renderer->GetContextIndex();
+	DescriptorPool* pDescriptorPool = m_renderer->GetDescriptorPool(threadIndex);
+
+	// set RootSignature
+	pCommandList->SetPipelineState(m_renderer->GetPsoCubeMap());
+	pCommandList->SetGraphicsRootSignature(m_renderer->GetRootSignatureCubeMap());
+	ID3D12DescriptorHeap* pDescriptorHeap = { pDescriptorPool->m_descritorHeap };
+	pCommandList->SetDescriptorHeaps(1, &pDescriptorHeap);
+
 	//GlobalConstant
-	CBV_CONTAINER globalContainer = m_cbvManager->GetGlobalContainer(contextIndex);
+	CBV_CONTAINER globalContainer = m_cbvManager->GetGlobalContainer(contextIndex, threadIndex);
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE globalCpuHandle(pDescriptorPool->m_descritorHeap->GetCPUDescriptorHandleForHeapStart());
 	CD3DX12_GPU_DESCRIPTOR_HANDLE globalGpuHandle(pDescriptorPool->m_descritorHeap->GetGPUDescriptorHandleForHeapStart());
@@ -411,7 +514,7 @@ void Model::DrawCubeMap(ID3D12GraphicsCommandList* pCommandList, const Matrix* p
 	pCommandList->SetGraphicsRootDescriptorTable(0, globalGpuHandle);
 
 	//ModelConstant
-	CBV_CONTAINER* cbvContainer = m_cbvManager->GetAllocatedContainer(contextIndex);
+	CBV_CONTAINER* cbvContainer = m_cbvManager->GetAllocatedContainer(contextIndex, threadIndex);
 	MODEL_CONSTANT* pModelConstant = (MODEL_CONSTANT*)cbvContainer->pSystemMemAddr;
 
 	//Model Update
@@ -442,7 +545,7 @@ void Model::DrawCubeMap(ID3D12GraphicsCommandList* pCommandList, const Matrix* p
 
 	//TEXTURES
 	//envIBL / specularIBL / irradianceIBL / brdfIBL
-	for (int i = 0; i < 4; i++) 
+	for (int i = 0; i < 4; i++)
 	{
 		if (m_srvContainer_CubeMap[i].pSrvResource)
 		{
@@ -463,11 +566,20 @@ void Model::DrawCubeMap(ID3D12GraphicsCommandList* pCommandList, const Matrix* p
 	pCommandList->DrawIndexedInstanced(indexCnt, 1, 0, 0, 0);
 }
 
-void Model::DrawAnimation(ID3D12GraphicsCommandList* pCommandList, const Matrix* pMatrix, int contextIndex)
+void Model::DrawAnimation(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, const Matrix* pMatrix)
 {
-	DescriptorPool* pDescriptorPool = m_renderer->GetDescriptorPool(contextIndex);
+	int contextIndex = m_renderer->GetContextIndex();
+	DescriptorPool* pDescriptorPool = m_renderer->GetDescriptorPool(threadIndex);
+
+	// set RootSignature
+	//if (shadowPass) pCommandList->SetPipelineState(m_renderer->GetPsoDepthOnlyAnimation());
+	//else pCommandList->SetPipelineState(m_renderer->GetPsoAnimation());
+	//pCommandList->SetGraphicsRootSignature(m_renderer->GetRootSignatureGeneral());
+	//ID3D12DescriptorHeap* pDescriptorHeap = { pDescriptorPool->m_descritorHeap };
+	//pCommandList->SetDescriptorHeaps(1, &pDescriptorHeap);
+
 	//GlobalConstant
-	CBV_CONTAINER globalContainer = m_cbvManager->GetGlobalContainer(contextIndex);
+	CBV_CONTAINER globalContainer = m_cbvManager->GetGlobalContainer(contextIndex, threadIndex);
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE globalCpuHandle(pDescriptorPool->m_descritorHeap->GetCPUDescriptorHandleForHeapStart());
 	CD3DX12_GPU_DESCRIPTOR_HANDLE globalGpuHandle(pDescriptorPool->m_descritorHeap->GetGPUDescriptorHandleForHeapStart());
@@ -476,7 +588,7 @@ void Model::DrawAnimation(ID3D12GraphicsCommandList* pCommandList, const Matrix*
 
 
 	//ModelConstant
-	CBV_CONTAINER* cbvContainer = m_cbvManager->GetAllocatedContainer(contextIndex);
+	CBV_CONTAINER* cbvContainer = m_cbvManager->GetAllocatedContainer(contextIndex, threadIndex);
 	MODEL_CONSTANT* pModelConstant = (MODEL_CONSTANT*)cbvContainer->pSystemMemAddr;
 
 	//Model Update
@@ -520,47 +632,6 @@ void Model::DrawAnimation(ID3D12GraphicsCommandList* pCommandList, const Matrix*
 
 	pCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-
-	// shadow map SRV 바인딩 (t8)
-	{
-		CD3DX12_CPU_DESCRIPTOR_HANDLE shadowCpu;
-		CD3DX12_GPU_DESCRIPTOR_HANDLE shadowGpu;
-
-		// shadow map용 디스크립터 1개만 할당
-		pDescriptorPool->AllocDescriptorTable(&shadowCpu, &shadowGpu, 1);
-
-		m_device->CopyDescriptorsSimple(1, shadowCpu, m_srvManager->m_srvContainer[0].srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
-		// root parameter 4 (t8)
-		pCommandList->SetGraphicsRootDescriptorTable(4, shadowGpu);
-	}
-
-	// cube map SRV 바인딩(t15)
-	{
-		CD3DX12_CPU_DESCRIPTOR_HANDLE cubeMapCpu;
-		CD3DX12_GPU_DESCRIPTOR_HANDLE cubeMapGpu;
-
-		// shadow map용 디스크립터 1개만 할당
-		pDescriptorPool->AllocDescriptorTable(&cubeMapCpu, &cubeMapGpu, 4);
-
-		//envIBL / specularIBL / irradianceIBL / brdfIBL
-		for (int i = 0; i < 4; i++)
-		{
-			if (m_srvContainer_CubeMap[i].pSrvResource)
-			{
-				m_device->CopyDescriptorsSimple(1, cubeMapCpu, m_srvContainer_CubeMap[i].srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				cubeMapCpu.Offset(1, descriptorSize);
-			}
-			else
-			{
-				cubeMapGpu.Offset(1, descriptorSize); //resource없으면 Descriptor를 빈공간으로
-			}
-		}
-		// root parameter 4 (t5)
-		pCommandList->SetGraphicsRootDescriptorTable(5, cubeMapGpu);
-	}
-
-
 	//global / model / mtl1 (mtl_constant), (textures...) / mtl2 (mtl_constant), (textures...) / mtl3 ..
 	for (int i = 0; i < m_materialNum; i++)
 	{
@@ -596,22 +667,6 @@ void Model::DrawAnimation(ID3D12GraphicsCommandList* pCommandList, const Matrix*
 			gpuDescriptorTable.Offset(1, descriptorSize);
 		}
 
-		//TEXTURES
-		for (int j = 0; j < MAX_TEXTURE_NUM; j++)
-		{
-			if (pTriGroup->srvContainer[j].pSrvResource != nullptr)
-			{
-				m_device->CopyDescriptorsSimple(1, cpuDescriptorTable, pTriGroup->srvContainer[j].srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				cpuDescriptorTable.Offset(1, descriptorSize);
-			}
-			else
-			{
-				cpuDescriptorTable.Offset(1, descriptorSize); //resource없으면 Descriptor를 빈공간으로
-			}
-		}
-		pCommandList->SetGraphicsRootDescriptorTable(3, gpuDescriptorTable);
-		gpuDescriptorTable.Offset(MAX_TEXTURE_NUM, descriptorSize);
-
 		//Mesh Draw
 		for (int j = 0; j < m_meshNum; j++)
 		{
@@ -622,10 +677,8 @@ void Model::DrawAnimation(ID3D12GraphicsCommandList* pCommandList, const Matrix*
 				pCommandList->DrawIndexedInstanced(pTriGroup->triNum[j] * 3, 1, 0, 0, 0);
 			}
 		}
+
 	}
-
-
-
 
 }
 

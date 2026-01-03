@@ -20,6 +20,11 @@
 #include "GeometryGenerator.h"
 #include "Animation.h"
 #include "Animator.h"
+#include "RenderQueue.h"
+#include "CommandListPool.h"
+#include "ProcessorInfo.h"
+#include <process.h>
+#include "RenderThread.h"
 #include "Renderer.h"
 
 using namespace DirectX;
@@ -171,17 +176,45 @@ void Renderer::OnInit()
 
 		m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-		for (int i = 0; i < MAX_PENDING_FRAME_COUNT; i++)
-		{
-			m_ppDescriptorPool[i] = new DescriptorPool();
-			m_ppDescriptorPool[i]->OnInit(m_device, maxObjectsNum);
-		}
+
+		DWORD dwPhysicalCoreCount = 0;
+		DWORD dwLogicalCoreCount = 0;
+		GetPhysicalCoreCount(&dwPhysicalCoreCount, &dwLogicalCoreCount);
+
+		m_renderThreadCount = dwPhysicalCoreCount;
+		if (m_renderThreadCount > MAX_RENDER_THREAD_COUNT)
+			m_renderThreadCount = MAX_RENDER_THREAD_COUNT;
+
+
+		InitRenderThreadPool(m_renderThreadCount);
 
 		m_srvManager = new SrvManager();
 		m_srvManager->OnInit(m_device, this);
 
 		m_cbvManager = new CbvManager();
 		m_cbvManager->OnInit(m_device, this);
+
+		for (int i = 0; i < m_renderThreadCount; i++)
+		{
+			m_ppRenderQueue[i] = new RenderQueue;
+			m_ppRenderQueue[i]->Initialize(this, 8192);
+		}
+
+		for (int i = 0; i < MAX_PENDING_FRAME_COUNT; i++)
+		{
+			for (int j = 0; j < m_renderThreadCount; j++)
+			{
+				m_ppCommandListPool[i][j] = new CommandListPool;
+				m_ppCommandListPool[i][j]->Initialize(m_device, D3D12_COMMAND_LIST_TYPE_DIRECT, 64);
+
+				m_ppDescriptorPool[i][j] = new DescriptorPool();
+				m_ppDescriptorPool[i][j]->OnInit(m_device, maxObjectsNum);
+
+				m_cbvManager->Reset(i, j);
+			}
+		}
+
+
 
 		m_shadowMapSrvContainer = m_srvManager->CreateShadowMapTexture();
 
@@ -201,18 +234,8 @@ void Renderer::OnInit()
 		}
 	}
 
-	for (int i = 0; i < MAX_PENDING_FRAME_COUNT; i++)
-	{
-		if (FAILED(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_ppCommandAllocator[i])))) __debugbreak();
-
-		// Create the command list.
-		if (FAILED(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_ppCommandAllocator[i], nullptr, IID_PPV_ARGS(&m_ppCommandList[i])))) __debugbreak();
-
-		// Command lists are created in the recording state, but there is nothing
-		// to record yet. The main loop expects it to be closed, so close it now.
-		if (FAILED(m_ppCommandList[i]->Close()))__debugbreak();
-	}
-
+	SetMainViewport();
+	SetShadowViewport();
 
 	LoadAssets();
 
@@ -737,12 +760,14 @@ void Renderer::CreateModels()
 
 	m_animator = new Animator[2];
 	m_animations = new Animation * [2];
+
 	//Animation
 	MeshDataInfo meshesInfo = GeometryGenerator::ReadMeshFromFile(basePath, fileName, animationFileNames, _countof(animationFileNames));
 	m_animations[0] = meshesInfo.m_animations;
 	m_animator[0].OnInit(m_animations[0], 8, meshesInfo.m_defaultTransform);
 	meshesInfo.finalBoneMatrices = m_animator[0].GetFinalBoneMatrices();
 	m_Models[0].CreateModelFromFile(meshesInfo);
+
 
 	/*
 	//Sci_fi_girl
@@ -763,6 +788,7 @@ void Renderer::CreateModels()
 		m_Models[3].CreateModelFromFile(meshesInfo2);
 	}
 	*/
+
 
 
 	//CubeMap
@@ -804,15 +830,21 @@ void Renderer::CreateModels()
 
 void Renderer::GlobalConstantUpdate(int contextIndex)
 {
-	GLOBAL_CONSTANT* globalConstant = (GLOBAL_CONSTANT*)(m_cbvManager->GetStartCBV(contextIndex) + 0);
+
 	View = camera.GetViewRow();
 	Proj = camera.GetProjRow();
 	invView = View.Invert();
-	globalConstant->View = View.Transpose();
-	globalConstant->Proj = Proj.Transpose();
-	globalConstant->eyePos = Vector4(camera.m_eyePos.x, camera.m_eyePos.y, camera.m_eyePos.z, 1.0f);
-	globalConstant->lightPos = lightPos;
-	globalConstant->strengthIBL = 0.15f;
+
+	for (int i = 0; i < m_renderThreadCount; i++)
+	{
+		GLOBAL_CONSTANT* globalConstant = (GLOBAL_CONSTANT*)(m_cbvManager->GetStartCBV(contextIndex, i) + 0);
+		globalConstant->View = View.Transpose();
+		globalConstant->Proj = Proj.Transpose();
+		globalConstant->eyePos = Vector4(camera.m_eyePos.x, camera.m_eyePos.y, camera.m_eyePos.z, 1.0f);
+		globalConstant->lightPos = lightPos;
+		globalConstant->strengthIBL = 0.15f;
+	}
+
 }
 
 void Renderer::GlobalShadowFrustumUpdate(int contextIndex)
@@ -831,10 +863,14 @@ void Renderer::GlobalShadowFrustumUpdate(int contextIndex)
 
 	shadowProj = XMMatrixOrthographicLH(40.0f, 40.0f, 1.0f, 30.0f);
 
-	GLOBAL_CONSTANT* globalConstant = (GLOBAL_CONSTANT*)(m_cbvManager->GetStartCBV(contextIndex) + 0);
-	globalConstant->shadowFrustum.viewProj = (shadowView * shadowProj).Transpose();
-	globalConstant->shadowFrustum.position = Vector4(shadowPos.x, shadowPos.y, shadowPos.z, 1.0f);
-	globalConstant->shadowFrustum.direction = Vector4(shadowDirection.x, shadowDirection.y, shadowDirection.z, 0.0f);
+	for (int i = 0; i < m_renderThreadCount; i++)
+	{
+		GLOBAL_CONSTANT* globalConstant = (GLOBAL_CONSTANT*)(m_cbvManager->GetStartCBV(contextIndex, i) + 0);
+		globalConstant->shadowFrustum.viewProj = (shadowView * shadowProj).Transpose();
+		globalConstant->shadowFrustum.position = Vector4(shadowPos.x, shadowPos.y, shadowPos.z, 1.0f);
+		globalConstant->shadowFrustum.direction = Vector4(shadowDirection.x, shadowDirection.y, shadowDirection.z, 0.0f);
+	}
+
 }
 
 // Update frame-based values.
@@ -901,23 +937,48 @@ void Renderer::Update(float dt)
 		camera.UpdateKeyboard(dt, keyPressed);
 	}
 
-	camera.SetEyePos(m_ObjectState[0].pos); 
+	camera.SetEyePos(m_ObjectState[0].pos);
 	GlobalConstantUpdate(m_curContextIndex);
 	GlobalShadowFrustumUpdate(m_curContextIndex);
 
+	BoundingFrustum::CreateFromMatrix(frustum, Proj);
+	frustum.Transform(frustum, invView); //model*view*proj에서 model에 바로 frustum적용하기 위함
+
+
+	//ControlCharacter
 	m_ObjectState[0].scale.x = 2.0f;
 	m_ObjectState[0].scale.y = 2.0f;
 	m_ObjectState[0].scale.z = 2.0f;
 
-	m_ObjectState[1].scale.x = 2.0f;
-	m_ObjectState[1].scale.y = 2.0f;
-	m_ObjectState[1].scale.z = 2.0f;
-	m_ObjectState[1].pos.x = -2.0f;
+	float posX = -15.0f;
+	float posZ = -15.0f;
+	for (int i = 1; i < 15; i++)
+	{
+		for (int j = 0; j < 15; j++)
+		{
+			m_ObjectState[10 * i + j].scale.x = 2.0f;
+			m_ObjectState[10 * i + j].scale.y = 2.0f;
+			m_ObjectState[10 * i + j].scale.z = 2.0f;
+			m_ObjectState[10 * i + j].pos.x = posX;
+			m_ObjectState[10 * i + j].pos.z = posZ;
+			posZ += 2.0f;
+		}
+		posX += 2.0f;
+		posZ = -15.0f;
+	}
 
-	m_ObjectState[2].scale.x = 2.0f;
-	m_ObjectState[2].scale.y = 2.0f;
-	m_ObjectState[2].scale.z = 2.0f;
-	m_ObjectState[2].pos.x = 2.0f;
+
+	m_ObjectState[7].scale.x = 2.0f;
+	m_ObjectState[7].scale.y = 2.0f;
+	m_ObjectState[7].scale.z = 2.0f;
+	m_ObjectState[7].pos.x = -2.0f;
+	m_ObjectState[7].pos.z = 2.0f;
+
+	m_ObjectState[8].scale.x = 2.0f;
+	m_ObjectState[8].scale.y = 2.0f;
+	m_ObjectState[8].scale.z = 2.0f;
+	m_ObjectState[8].pos.z = 2.0f;
+
 
 	//cubemap
 	m_ObjectState[3].scale.x = 1.0f;
@@ -944,115 +1005,166 @@ void Renderer::Update(float dt)
 	m_ObjectState[6].pos.z = 2.0f;
 	m_ObjectState[6].pos.y = 1.0f;
 
+	//ControlCharacter
+	objectMatrix[0] = GetObjectWorldMatrix(m_ObjectState[0]);
 
-
-}
-void Renderer::ObjectRender()
-{
-	//main character
-	Matrix object0_Matrix = GetObjectWorldMatrix(m_ObjectState[0]);
-
-	Matrix object1_Matrix = GetObjectWorldMatrix(m_ObjectState[1]);
-	Matrix object2_Matrix = GetObjectWorldMatrix(m_ObjectState[2]);
+	//Copy Character
+	for (int i = 10; i < 15 * 15; i++)
+	{
+		objectMatrix[i] = GetObjectWorldMatrix(m_ObjectState[i]);
+	}
 
 	//cubeMap
-	Matrix object3_Matrix = GetObjectWorldMatrix(m_ObjectState[3]);
+	objectMatrix[3] = GetObjectWorldMatrix(m_ObjectState[3]);
 
 	//ground
-	Matrix object4_Matrix = GetObjectWorldMatrix(m_ObjectState[4]);
+	objectMatrix[4] = GetObjectWorldMatrix(m_ObjectState[4]);
 
 	//Sci_fi_girl
-	Matrix object5_Matrix = GetObjectWorldMatrix(m_ObjectState[5]);
+	objectMatrix[5] = GetObjectWorldMatrix(m_ObjectState[5]);
 
 	//square
-	Matrix object6_Matrix = GetObjectWorldMatrix(m_ObjectState[6]);
+	objectMatrix[6] = GetObjectWorldMatrix(m_ObjectState[6]);
 
-	BoundingFrustum::CreateFromMatrix(frustum, Proj);
-	frustum.Transform(frustum, invView); //model*view*proj에서 model에 바로 frustum적용하기 위함
+}
 
-	ID3D12GraphicsCommandList* pCommandList = m_ppCommandList[m_curContextIndex];
+void Renderer::RenderMeshAnimation(void* pMeshObjHandle, const Matrix* pMatWorld, PASS_STATE passState)
+{
+	RENDER_ITEM item;
+	item.Type = RENDER_ITEM_TYPE_MESH_ANIMATION;
+	item.pObjHandle = pMeshObjHandle;
+	item.matWorld = *pMatWorld;
+	item.passState = passState;
 
-	//ShadowMapping Render
-	SetShadowViewport();
-	pCommandList->RSSetViewports(1, &m_shadowViewport);
-	pCommandList->RSSetScissorRects(1, &m_shadowScissorRect);
+	if (!m_ppRenderQueue[m_curThreadIndex]->Add(&item))
+		__debugbreak();
 
-	pCommandList->SetPipelineState(m_DepthOnlyAnimationPSO);
-	pCommandList->SetGraphicsRootSignature(m_rootSignature_General);
+	m_curThreadIndex++;
+	m_curThreadIndex = m_curThreadIndex % m_renderThreadCount;
+}
 
-	pCommandList->OMSetRenderTargets(0, nullptr, FALSE, &m_shadowMapSrvContainer.dsvHandle);
-	pCommandList->ClearDepthStencilView(m_shadowMapSrvContainer.dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+void Renderer::RenderMeshGeneral(void* pMeshObjHandle, const Matrix* pMatWorld)
+{
+	RENDER_ITEM item;
+	item.Type = RENDER_ITEM_TYPE_MESH_GENERAL;
+	item.pObjHandle = pMeshObjHandle;
+	item.matWorld = *pMatWorld;
 
-	m_Models[0].localAABB.Transform(worldAABB, object0_Matrix);
-	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(pCommandList, &object0_Matrix, m_curContextIndex);
+	if (!m_ppRenderQueue[m_curThreadIndex]->Add(&item))
+		__debugbreak();
 
-	m_Models[0].localAABB.Transform(worldAABB, object1_Matrix);
-	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(pCommandList, &object1_Matrix, m_curContextIndex);
+	m_curThreadIndex++;
+	m_curThreadIndex = m_curThreadIndex % m_renderThreadCount;
+}
 
-	m_Models[0].localAABB.Transform(worldAABB, object2_Matrix);
-	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(pCommandList, &object2_Matrix, m_curContextIndex);
+void Renderer::ObjectRender()
+{
 
-	m_Models[3].localAABB.Transform(worldAABB, object5_Matrix);
-	//if (frustum.Intersects(worldAABB)) m_Models[3].DrawAnimation(pCommandList, &object5_Matrix, m_curContextIndex);
+	ShadowPass();
 
-	//Main Render
-	SetMainViewport();
-	pCommandList->RSSetViewports(1, &m_viewport);
-	pCommandList->RSSetScissorRects(1, &m_scissorRect);
+	RenderPass();
 
-	pCommandList->SetPipelineState(m_animationPSO);
-	pCommandList->SetGraphicsRootSignature(m_rootSignature_General);
+}
+
+void Renderer::ShadowPass()
+{
+
+	CommandListPool* pCommandListPool = m_ppCommandListPool[m_curContextIndex][0];
+	ID3D12GraphicsCommandList* pCommandList = pCommandListPool->GetCurrentCommandList();
+
+	CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+	// Indicate that the back buffer will be used as a render target.
+	pCommandList->ResourceBarrier(1, &barrier);
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
 	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
-	pCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
 	// Record commands.
 	const float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	pCommandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 	pCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-	m_Models[0].localAABB.Transform(worldAABB, object0_Matrix);
-	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(pCommandList, &object0_Matrix, m_curContextIndex);
+	pCommandList->ClearDepthStencilView(m_shadowMapSrvContainer.dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+	pCommandListPool->CloseAndExecute(m_commandQueue);
 
-	m_Models[0].localAABB.Transform(worldAABB, object1_Matrix);
-	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(pCommandList, &object1_Matrix, m_curContextIndex);
+	RenderMeshAnimation(&m_Models[0], &objectMatrix[0], SHADOW_PASS);
+	for (int i = 10; i < 150; i++)
+	{
+		RenderMeshAnimation(&m_Models[0], &objectMatrix[i], SHADOW_PASS);
+	}
 
-	m_Models[0].localAABB.Transform(worldAABB, object2_Matrix);
-	if (frustum.Intersects(worldAABB)) m_Models[0].DrawAnimation(pCommandList, &object2_Matrix, m_curContextIndex);
 
-	m_Models[3].localAABB.Transform(worldAABB, object5_Matrix);
-	//if (frustum.Intersects(worldAABB)) m_Models[3].DrawAnimation(pCommandList, &object5_Matrix, m_curContextIndex);
+
+
+}
+
+void Renderer::RenderPass()
+{
+
+	RenderMeshAnimation(&m_Models[0], &objectMatrix[0], RENDER_PASS);
+
+
+	for (int i = 10; i < 150; i++)
+	{
+		RenderMeshAnimation(&m_Models[0], &objectMatrix[i], RENDER_PASS);
+	}
+
+
+	m_lActiveThreadCount = m_renderThreadCount;
+	for (int i = 0; i < m_renderThreadCount; i++)
+	{
+		SetEvent(m_pThreadDescList[i].hEventList[RENDER_THREAD_EVENT_TYPE_PROCESS]);
+	}
+	WaitForSingleObject(m_hCompleteEvent, INFINITE);
+
+	for (int i = 0; i < m_renderThreadCount; i++)
+	{
+		m_ppRenderQueue[i]->Reset();
+	}
+
+	CommandListPool* pCommandListPool = m_ppCommandListPool[m_curContextIndex][0];
+	ID3D12GraphicsCommandList* pCommandList = pCommandListPool->GetCurrentCommandList();
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
+
+	pCommandList->RSSetViewports(1, &m_viewport);
+	pCommandList->RSSetScissorRects(1, &m_scissorRect);
+	pCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+
 
 	//cubemap
 	pCommandList->SetPipelineState(m_cubeMapPSO);
 	pCommandList->SetGraphicsRootSignature(m_rootSignature_CubeMap);
-	m_Models[1].DrawCubeMap(pCommandList, &object3_Matrix, m_curContextIndex);
+	m_Models[1].DrawCubeMap(0, pCommandList, &objectMatrix[3]);
+
 
 	//ground
 	pCommandList->SetPipelineState(m_GeneralPSO);
 	pCommandList->SetGraphicsRootSignature(m_rootSignature_General);
-	m_Models[2].DrawGeneralMesh(pCommandList, &object4_Matrix, m_curContextIndex);
+	m_Models[2].DrawGeneralMesh(0, pCommandList, &objectMatrix[4]);
 
-	//square
-	//m_Models[4].DrawGeneralMesh(&object6_Matrix);
+
+	CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+	pCommandList->ResourceBarrier(1, &barrier);
+
+	pCommandListPool->CloseAndExecute(m_commandQueue);
 }
+
 
 // Render the scene.
 void Renderer::Render()
 {
-	//printf("contexIndex : %d\n", m_curContextIndex);
-	m_ppDescriptorPool[m_curContextIndex]->Reset();
-	m_cbvManager->Reset(m_curContextIndex);
+	for (int i = 0; i < m_renderThreadCount; i++)
+	{
+		m_ppDescriptorPool[m_curContextIndex][i]->Reset();
+		m_cbvManager->Reset(m_curContextIndex, i);
+		m_ppCommandListPool[m_curContextIndex][i]->Reset();
+	}
 
-	// Record all the commands we need to render the scene into the command list.
-	PopulateCommandList();
 
-	ID3D12GraphicsCommandList* pCommandList = m_ppCommandList[m_curContextIndex];
-	// Execute the command list.
-	ID3D12CommandList* ppCommandLists[] = { pCommandList };
-	m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
-
+	ObjectRender();
 
 	// Present the frame.
 	m_swapChain->Present(1, 0);
@@ -1066,37 +1178,6 @@ void Renderer::Render()
 	WaitForFenceValue(m_pui64LastFenceValue[nextContextIndex]);
 
 	m_curContextIndex = nextContextIndex;
-}
-
-void Renderer::PopulateCommandList()
-{
-	ID3D12CommandAllocator* pCommandAllocator = m_ppCommandAllocator[m_curContextIndex];
-	ID3D12GraphicsCommandList* pCommandList = m_ppCommandList[m_curContextIndex];
-
-	// Command list allocators can only be reset when the associated 
-	// command lists have finished execution on the GPU; apps should use 
-	// fences to determine GPU execution progress.
-	if (FAILED(pCommandAllocator->Reset())) __debugbreak();
-
-	// However, when ExecuteCommandList() is called on a particular command 
-	// list, that command list can then be reset at any time and must be before 
-	// re-recording.
-	if (FAILED(pCommandList->Reset(pCommandAllocator, nullptr))) __debugbreak();
-
-	ID3D12DescriptorHeap* ppHeaps[] = { m_ppDescriptorPool[m_curContextIndex]->m_descritorHeap};
-	pCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
-
-	CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-
-	// Indicate that the back buffer will be used as a render target.
-	pCommandList->ResourceBarrier(1, &barrier);
-
-	ObjectRender();
-
-	barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-	pCommandList->ResourceBarrier(1, &barrier);
-
-	if (FAILED(pCommandList->Close())) __debugbreak();
 }
 
 void Renderer::Fence()
@@ -1122,6 +1203,41 @@ void Renderer::WaitForFenceValue(UINT64 ExpectedFenceValue)
 	}
 }
 
+void Renderer::InitRenderThreadPool(UINT threadCount)
+{
+	m_pThreadDescList = new RENDER_THREAD_DESC[threadCount];
+	memset(m_pThreadDescList, 0, sizeof(RENDER_THREAD_DESC) * threadCount);
+
+	m_hCompleteEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+	for (DWORD i = 0; i < threadCount; i++)
+	{
+		for (DWORD j = 0; j < RENDER_THREAD_EVENT_TYPE_COUNT; j++)
+		{
+			m_pThreadDescList[i].hEventList[j] = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+
+		}
+		m_pThreadDescList[i].pRenderer = this;
+		m_pThreadDescList[i].threadIndex = i;
+		UINT uiThreadID = 0;
+
+		//워커스레드 형성
+		m_pThreadDescList[i].hThread = (HANDLE)_beginthreadex(nullptr, 0, RenderThread, m_pThreadDescList + i, 0, &uiThreadID);
+	}
+}
+
+void Renderer::ProcessByThread(UINT threadIndex)
+{
+	CommandListPool* pCommandListPool = m_ppCommandListPool[m_curContextIndex][threadIndex];	// 현재 사용중인 command list pool
+
+
+	m_ppRenderQueue[threadIndex]->Process(threadIndex, pCommandListPool, m_commandQueue, 40);
+	// 원자적 접근
+	LONG lCurCount = _InterlockedDecrement(&m_lActiveThreadCount);
+	if (0 == lCurCount)
+	{
+		SetEvent(m_hCompleteEvent);
+	}
+}
 
 Renderer::~Renderer()
 {
@@ -1157,22 +1273,20 @@ Renderer::~Renderer()
 
 	for (int i = 0; i < MAX_PENDING_FRAME_COUNT; i++)
 	{
-		if (m_ppDescriptorPool[i])
+		for (int j = 0; j < MAX_RENDER_THREAD_COUNT; j++)
 		{
-			delete m_ppDescriptorPool[i];
-			m_ppDescriptorPool[i] = nullptr;
-		}
-		if (m_ppCommandList[i])
-		{
-			m_ppCommandList[i]->Release();
-			m_ppCommandList[i] = nullptr;
+			if (m_ppDescriptorPool[i])
+			{
+				delete m_ppDescriptorPool[i][j];
+				m_ppDescriptorPool[i][j] = nullptr;
+			}
+			if (m_ppCommandListPool[i][j])
+			{
+				delete m_ppCommandListPool[i][j];
+				m_ppCommandListPool[i][j] = nullptr;
+			}
 		}
 
-		if (m_ppCommandAllocator[i])
-		{
-			m_ppCommandAllocator[i]->Release();
-			m_ppCommandAllocator[i] = nullptr;
-		}
 
 	}
 
@@ -1271,21 +1385,22 @@ Renderer::~Renderer()
 		m_indexBufferPool = nullptr;
 	}
 	SafeDeleteArray(&m_Models);
+	SafeDeleteArray(&m_animations);
+	SafeDeleteArray(&m_animator);
+	SafeDeleteArray(&m_pThreadDescList);
 
-	if (m_animator)
+	if (m_ppRenderQueue)
 	{
-		delete[] m_animator;
-		m_animator = nullptr;
+		for (int i = 0; i < MAX_RENDER_THREAD_COUNT; i++)
+		{
+			if (m_ppRenderQueue[i])
+			{
+				delete m_ppRenderQueue[i];
+				m_ppRenderQueue[i] = nullptr;
+			}
+		}
 	}
-
-	if (m_animations)
-	{
-		delete[] m_animations;
-		m_animations = nullptr;
-	}
-
 	SafeDeleteArray(&m_ObjectState);
-
 	if (m_device)
 	{
 		int restCount = m_device->Release();
