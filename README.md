@@ -1,12 +1,11 @@
 ## 프로젝트 개요
 
 DirectX 12를 이용해 게임 엔진을 직접 제작한 프로젝트입니다.
-메모리 관리, 로우레벨 렌더링 구조,그리고 아트파이프라인을 이해하고 구축하는데 중점을 두었습니다.
-
+메모리 관리, 로우레벨 렌더링 구조, 모델 데이터 추출 및 파싱, 최적화에 중점을 두고 구현하였습니다.
 
 ## 개발 환경 및 설정
 
-Language: C++14 (C 스타일 메모리 관리)
+Language: C++14
 
 Build Type: Debug 전용
 → 디버그 레이어 사용을 위해 아래 설정 필요
@@ -19,8 +18,7 @@ OS: Windows 10 이상 (10 미만은 내장 GPU 사용)
 
 .sln파일 실행 후, Solution우클릭 -> Manager Nuget Packages for Solution -> Microsoft.Direct3D.D3D12다운
 
-디버깅 도구: PIX
-(DirectX 11 버전에서는 RenderDoc 사용 경험 있음)
+디버깅 및 프로파일링 도구: PIX, RenderDoc
 
    1. 자체 포맷 파일
       - 확인 경로:
@@ -37,7 +35,12 @@ OS: Windows 10 이상 (10 미만은 내장 GPU 사용)
       - 확인 파일: `Renderer.cpp`
    4. 모델 생성 및 Draw 로직
       - 확인 파일: `Model.cpp`
-   5. 스키닝 및 애니메이션 구현 : Bone.cpp, Animator.cpp, Animation.cpp
+   5. 스키닝 및 애니메이션 구현
+      - 확인 파일 : `Bone.cpp, Animator.cpp, Animation.cpp`
+   6. cpu - gpu 병렬처리
+      - 확인 파일 : `Renderer.cpp`
+   7. 멀티스레드 렌더링
+      - 확인 파일 : `RendererThread.cpp, RenderQueue.cpp, CommandListPool.cpp`
 
 ## 주요 구현 내용
 • DirectX 12 기반 자체 렌더링 엔진 구현
@@ -62,6 +65,15 @@ OS: Windows 10 이상 (10 미만은 내장 GPU 사용)
 • cpu-gpu 병렬처리
   - overlappedFrames방식으로 context 2개를 활용하여 cpu-gpu병렬처리
   - 프레임 60-70 => 80-100으로 향상
+
+• CPU 병목 제거
+  - 불필요한 바인딩 제거 (pix 프로파일링 도구 이용)
+  - 쉐도우패스와 렌더패스 사이의 wait제거
+  - 프레임 약 40% 향상
+
+• 멀티스레딩
+  - 캐릭터를 150번 draw함으로써 프레임 약 30% 향상
+  - cpu및 gpu 사용량 각각 70%, 25% 증가
 
 ## cpu 메모리관리
 • 메모리 관리 및 로딩 구조 설계
@@ -93,21 +105,68 @@ OS: Windows 10 이상 (10 미만은 내장 GPU 사용)
 Vertex / Index / ConstantBuffer:
 Pool 기반으로 미리 할당 후 Sub-Allocation 방식으로 연속 관리
 
-텍스처: Pool 미구현 상태 (현재 CreateCommittedResource 반복 호출 중)
-
-## 향후 개선 예정
-1)  다중 오브젝트 렌더링 시 프레임 저하 문제 분석
-   => DX12 멀티스레딩 학습 및 적용 예정
-2) PBR 일반 오브젝트 렌더링 시에도 톤매핑 적용
-3) 텍스춰 pool 시스템 구축
-
 포트폴리오 영상 : https://www.youtube.com/watch?v=Pzj5By9eyDg
 
 
+그래픽스 학습 블로그 Asset 파이프라인 구축
+  - Mixamo, CGTrader, Sketchfab, Unity Asset Store 모델 정규화
+  - Multi-Material 시스템 대응
+  - 자체 포맷으로 Export → Runtime 로딩
+
+• Gameplay / Engine Logic
+  - Animation State 제어 및 간단한 공격 로직 구현
+  - Frustum Culling 적용을 통한 렌더링 최적화
+  - Animation 간 Blending 및 변환 로직 구현
+
+• cpu-gpu 병렬처리
+  - overlappedFrames방식으로 context 2개를 활용하여 cpu-gpu병렬처리
+  - 프레임 60-70 => 80-100으로 향상
+
+• CPU 병목 제거
+  - 불필요한 바인딩 제거 (pix 프로파일링 도구 이용)
+  - 쉐도우패스와 렌더패스 사이의 wait제거
+  - 프레임 약 40% 향상
+
+• 멀티스레딩
+  - 캐릭터를 150번 draw함으로써 프레임 약 30% 향상
+  - cpu및 gpu 사용량 각각 70%, 25% 증가
+
+## cpu 메모리관리
+• 메모리 관리 및 로딩 구조 설계
+  - 메모리 흐름을 명확히 이해하기 위해 new/delete로 메모리 직접 제어
+    
+    · 메모리를 생각하는 연습을 하기위한 의도적인 선택
+    
+    · new/delete 및 C 스타일 메모리 직접 제어
+
+  - 힙 할당/해제 최소화를 고려한 구조 설계
+    
+    · 로딩 시 필요한 메모리 크기를 사전에 계산
+    
+    · 런타임 중 동적 재할당 최소화
+
+  - 종료 시 메모리 누수 없음 확인
+    
+    · CRT Debug Heap 및 런타임 검증 완료
 
 
-블로그 학습 글
- https://pdy0930.tistory.com/
+• 자체 포맷 기반 로딩 최적화
+  - 파일 상단(Header)에 Vertex / Index / Texture / Bone 개수 명시
+  - 로딩 시작 시 전체 메모리 요구량을 즉시 산출 가능하도록 설계
+  - 불필요한 Bone 제거(사용되지 않는 Bone Cull)
+    · Vertex 가중치 기준으로 실제 사용 Bone만 유지
+    · 스키닝 연산 및 메모리 사용량 감소
+    
+## gpu 버퍼 및 리소스 관리
+Vertex / Index / ConstantBuffer:
+Pool 기반으로 미리 할당 후 Sub-Allocation 방식으로 연속 관리
+
+포트폴리오 영상 : 
+   https://www.youtube.com/watch?v=mqCLjAVeXGs
+
+
+그래픽스 학습 블로그 :
+   https://pdy0930.tistory.com/category/%5BGraphics%5D%20%EA%B7%B8%EB%9E%98%ED%94%BD%EC%8A%A4%20%EC%88%98%ED%95%99
 
 ## 📂 관련 프로젝트
 
