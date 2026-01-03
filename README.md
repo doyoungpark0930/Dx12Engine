@@ -48,7 +48,6 @@ OS: Windows 10 이상 (10 미만은 내장 GPU 사용)
 • 3ds Max Export Plug-in 제작
   - Mesh / Animation 분리된 자체 포맷 설계
   - Skeletal Animation Skinning 구현
-  - Animation 간 Blending 및 변환 로직 구현
 
 • Asset 파이프라인 구축
   - Mixamo, CGTrader, Sketchfab, Unity Asset Store 모델 정규화
@@ -58,16 +57,17 @@ OS: Windows 10 이상 (10 미만은 내장 GPU 사용)
 • Gameplay / Engine Logic
   - Animation State 제어 및 간단한 공격 로직 구현
   - Frustum Culling 적용을 통한 렌더링 최적화
+  - Animation 간 Blending 및 변환 로직 구현
 
-• cpu-gpu 멀티스레딩
+• cpu-gpu 병렬처리
   - overlappedFrames방식으로 context 2개를 활용하여 cpu-gpu병렬처리
-  - 프레임 60~70 => 80~100으로 향상
+  - 프레임 60-70 => 80-100으로 향상
 
 ## cpu 메모리관리
 • 메모리 관리 및 로딩 구조 설계
-  - 스마트 포인터 및 STL 컨테이너 미사용
+  - 메모리 흐름을 명확히 이해하기 위해 new/delete로 메모리 직접 제어
     
-    · 메모리 흐름을 명확히 이해하기 위한 의도적 선택
+    · 메모리를 생각하는 연습을 하기위한 의도적인 선택
     
     · new/delete 및 C 스타일 메모리 직접 제어
 
@@ -81,8 +81,6 @@ OS: Windows 10 이상 (10 미만은 내장 GPU 사용)
     
     · CRT Debug Heap 및 런타임 검증 완료
 
-  - std::string은 디버깅 용도로만 제한적 사용
-  - 해쉬는 std::unorderd_map 사용
 
 • 자체 포맷 기반 로딩 최적화
   - 파일 상단(Header)에 Vertex / Index / Texture / Bone 개수 명시
@@ -98,11 +96,10 @@ Pool 기반으로 미리 할당 후 Sub-Allocation 방식으로 연속 관리
 텍스처: Pool 미구현 상태 (현재 CreateCommittedResource 반복 호출 중)
 
 ## 향후 개선 예정
-1) overframedBuffer(cpu - gpu 멀티스레딩 적용)
-2)  다중 오브젝트 렌더링 시 프레임 저하 문제 분석
+1)  다중 오브젝트 렌더링 시 프레임 저하 문제 분석
    => DX12 멀티스레딩 학습 및 적용 예정
-3) PBR 일반 오브젝트 렌더링 시에도 톤매핑 적용
-4) 텍스춰 pool 시스템 구축
+2) PBR 일반 오브젝트 렌더링 시에도 톤매핑 적용
+3) 텍스춰 pool 시스템 구축
 
 포트폴리오 영상 : https://www.youtube.com/watch?v=Pzj5By9eyDg
 
