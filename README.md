@@ -105,9 +105,6 @@ OS: Windows 10 이상 (10 미만은 내장 GPU 사용)
 Vertex / Index / ConstantBuffer:
 Pool 기반으로 미리 할당 후 Sub-Allocation 방식으로 연속 관리
 
-포트폴리오 영상 : https://www.youtube.com/watch?v=Pzj5By9eyDg
-
-
 그래픽스 학습 블로그 Asset 파이프라인 구축
   - Mixamo, CGTrader, Sketchfab, Unity Asset Store 모델 정규화
   - Multi-Material 시스템 대응
